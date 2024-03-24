@@ -4,3 +4,8 @@ accessible method net/minecraft/client/renderer/RenderType$CompositeRenderType s
 accessible class net/minecraft/client/renderer/RenderType$CompositeState
 accessible field net/minecraft/client/renderer/RenderType$CompositeState textureState Lnet/minecraft/client/renderer/RenderStateShard$EmptyTextureStateShard;
 accessible class net/minecraft/client/renderer/RenderStateShard$TextureStateShard
+accessible method net/minecraft/world/entity/Display$BlockDisplay setBlockState (Lnet/minecraft/world/level/block/state/BlockState;)V
+accessible method net/minecraft/world/entity/Display$BlockDisplay updateRenderSubState (ZF)V
+accessible field net/minecraft/world/entity/Display renderState Lnet/minecraft/world/entity/Display$RenderState;
+accessible method net/minecraft/world/entity/Display createFreshRenderState ()Lnet/minecraft/world/entity/Display$RenderState;
+accessible method net/minecraft/world/entity/Display createInterpolatedRenderState (Lnet/minecraft/world/entity/Display$RenderState;F)Lnet/minecraft/world/entity/Display$RenderState;

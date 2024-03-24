@@ -1,7 +1,10 @@
 package io.github.lucaargolo.exporter;
 
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.logging.LogUtils;
+import de.javagl.jgltf.model.MaterialModel;
 import de.javagl.jgltf.model.MeshModel;
+import de.javagl.jgltf.model.NodeModel;
 import de.javagl.jgltf.model.creation.AccessorModels;
 import de.javagl.jgltf.model.creation.GltfModelBuilder;
 import de.javagl.jgltf.model.impl.*;
@@ -14,34 +17,40 @@ import it.unimi.dsi.fastutil.ints.IntArraySet;
 import it.unimi.dsi.fastutil.objects.Object2IntArrayMap;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.texture.AbstractTexture;
-import net.minecraft.world.inventory.InventoryMenu;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.Display;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import org.joml.*;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
+import org.slf4j.Logger;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public class ExporterClient implements ClientModInitializer {
 
+    public static final Logger LOGGER = LogUtils.getLogger();
     private static int MODEL_COUNT = 0;
 
     public static int MARKED_ENTITY = -1;
-
+    public static Matrix4f INVERTED_POSE;
+    public static BoundingBox MARKED_BOX;
     public static MultiBufferSource MARKED_BUFFER;
     public static final Object2IntMap<VertexConsumer> MARKED_CONSUMERS = new Object2IntArrayMap<>();
 
@@ -52,25 +61,55 @@ public class ExporterClient implements ClientModInitializer {
     public static final Int2ObjectArrayMap<List<Vector3f>> CAPTURED_VERTICES = new Int2ObjectArrayMap<>();
     public static final Int2ObjectArrayMap<List<Vector3i>> CAPTURED_TRIANGLES = new Int2ObjectArrayMap<>();
     public static final Int2ObjectArrayMap<List<Vector2f>> CAPTURED_UVS = new Int2ObjectArrayMap<>();
+    public static final List<NodeModel> NODES = new ArrayList<>();
+    public static final Int2ObjectArrayMap<MaterialModel> MATERIALS = new Int2ObjectArrayMap<>();
 
     @Override
     public void onInitializeClient() {
+        WorldRenderEvents.BEFORE_ENTITIES.register(context -> {
+            if(MARKED_BOX != null) {
+                var minecraft = Minecraft.getInstance();
+                var dispatcher = minecraft.getEntityRenderDispatcher();
+                var level = context.world();
+                BlockPos.betweenClosed(MARKED_BOX.minX(), MARKED_BOX.minY(), MARKED_BOX.minZ(), MARKED_BOX.maxX(), MARKED_BOX.maxY(), MARKED_BOX.maxZ()).forEach(pos -> {
+                    var state = level.getBlockState(pos);
+                    var display = new Display.BlockDisplay(EntityType.BLOCK_DISPLAY, level);
+                    display.setBlockState(state);
+                    display.setId(Integer.MAX_VALUE);
+                    display.updateRenderSubState(true, context.tickDelta());
+                    display.renderState = display.createInterpolatedRenderState(display.createFreshRenderState(), context.tickDelta());
+                    markEntity(Integer.MAX_VALUE);
+                    dispatcher.render(display, pos.getX(), pos.getY(), pos.getZ(), 0f, context.tickDelta(), context.matrixStack(), context.consumers(), LightTexture.FULL_BRIGHT);
+                });
+                MARKED_BOX = null;
+                writeCapturedModel();
+            }
+        });
+    }
+
+    public static void markEntity(int entityId) {
+        MARKED_ENTITY = entityId;
+        CAPTURED_IMAGES.clear();
+        VERTICE_COUNT.clear();
+        CAPTURED_VERTICES.clear();
+        CAPTURED_TRIANGLES.clear();
+        CAPTURED_UVS.clear();
     }
 
     public static void captureVertex(int glID, float x, float y, float z, float u, float v) {
         CAPTURED_IMAGES.add(glID);
+        List<Vector3f> vertices = CAPTURED_VERTICES.computeIfAbsent(glID, i -> new ArrayList<>());
+        List<Vector3i> triangles = CAPTURED_TRIANGLES.computeIfAbsent(glID, i -> new ArrayList<>());
+        List<Vector2f> uvs = CAPTURED_UVS.computeIfAbsent(glID, i -> new ArrayList<>());
 
-        List<Vector3f> vertices = ExporterClient.CAPTURED_VERTICES.computeIfAbsent(glID, i -> new ArrayList<>());
-        List<Vector3i> triangles = ExporterClient.CAPTURED_TRIANGLES.computeIfAbsent(glID, i -> new ArrayList<>());
-        List<Vector2f> uvs = ExporterClient.CAPTURED_UVS.computeIfAbsent(glID, i -> new ArrayList<>());
-
-        Vector3f capturedVertex = new Vector3f(x, y, z);
+        Vector4f reversedVertex = INVERTED_POSE.transform(new Vector4f(x, y, z, 1f));
+        Vector3f capturedVertex = new Vector3f(reversedVertex.x, reversedVertex.y, reversedVertex.z);
         int index = vertices.size();
         vertices.add(capturedVertex);
         uvs.add(new Vector2f(u, v));
 
-        int verticeCount = ExporterClient.VERTICE_COUNT.computeIfAbsent(glID, i -> 0);
-        IntArrayList verticeHolder = ExporterClient.VERTICE_HOLDER.computeIfAbsent(glID, i -> new IntArrayList(new int[4]));
+        int verticeCount = VERTICE_COUNT.computeIfAbsent(glID, i -> 0);
+        IntArrayList verticeHolder = VERTICE_HOLDER.computeIfAbsent(glID, i -> new IntArrayList(new int[4]));
         verticeHolder.set(verticeCount % 4, index);
         if((verticeCount+1) % 4 == 0) {
             int a = verticeHolder.getInt(0);
@@ -83,7 +122,7 @@ public class ExporterClient implements ClientModInitializer {
         ExporterClient.VERTICE_COUNT.put(glID, verticeCount+1);
     }
 
-    public static ByteBuffer extractTexture(int glId)  throws IOException {
+    public static ByteBuffer extractTexture(int glId) {
         int[] textureId = new int[1];
         GL11.glGetIntegerv(GL11.GL_TEXTURE_BINDING_2D, textureId);
         GL11.glBindTexture(GL11.GL_TEXTURE_2D, glId);
@@ -96,7 +135,7 @@ public class ExporterClient implements ClientModInitializer {
         return convertToPNG(buffer, width, height);
     }
 
-    public static ByteBuffer convertToPNG(ByteBuffer rgbaData, int width, int height) throws IOException {
+    public static ByteBuffer convertToPNG(ByteBuffer rgbaData, int width, int height) {
         BufferedImage img = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
         int[] pixels = new int[width * height];
         for (int i = 0; i < pixels.length; i++) {
@@ -109,19 +148,20 @@ public class ExporterClient implements ClientModInitializer {
         img.setRGB(0, 0, width, height, pixels, 0, width);
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        ImageIO.write(img, "png", baos);
-        baos.flush();
-        byte[] pngData = baos.toByteArray();
-        baos.close();
-
-        return ByteBuffer.wrap(pngData);
+        try {
+            ImageIO.write(img, "png", baos);
+            baos.flush();
+            byte[] pngData = baos.toByteArray();
+            baos.close();
+            return ByteBuffer.wrap(pngData);
+        }catch (Exception e) {
+            return ByteBuffer.wrap(new byte[0]);
+        }
     }
 
-    public static void writeCapturedModel() {
-        var builder = GltfModelBuilder.create();
-
-        var scene = new DefaultSceneModel();
-
+    public static void writeCapturedNode(Vector3f translation) {
+        var node = new DefaultNodeModel();
+        node.setTranslation(new float[] {translation.x, translation.y, translation.z});
         for (int glId : CAPTURED_IMAGES) {
             float[] vertices = new float[CAPTURED_VERTICES.get(glId).size() * 3];
             for (int i = 0; i < CAPTURED_VERTICES.get(glId).size(); i++) {
@@ -144,31 +184,64 @@ public class ExporterClient implements ClientModInitializer {
                 triangles[i * 3 + 2] = triangle.z;
             }
             try {
-                var node = new DefaultNodeModel();
-                ByteBuffer imageBuffer = extractTexture(glId);
-                MeshModel mesh = writeMesh(imageBuffer, vertices, uvs, triangles);
-                node.addMeshModel(mesh);
-                scene.addNode(node);
+                var child = new DefaultNodeModel();
+                var material = MATERIALS.computeIfAbsent(glId, ExporterClient::getMaterial);
+                MeshModel mesh = writeMesh(material, vertices, uvs, triangles);
+                child.addMeshModel(mesh);
+                node.addChild(child);
             } catch (Exception e) {
-                e.printStackTrace();
+                LOGGER.error("Error while saving node: ", e);
             }
         }
+        NODES.add(node);
+    }
 
+    public static MaterialModel getMaterial(int glId) {
+        ByteBuffer imageBuffer = extractTexture(glId);
 
+        var image = new DefaultImageModel();
+        image.setImageData(imageBuffer);
+
+        var texture = new DefaultTextureModel();
+        texture.setImageModel(image);
+        texture.setMinFilter(GL11.GL_NEAREST);
+        texture.setMagFilter(GL11.GL_NEAREST);
+
+        var material = new MaterialModelV2();
+        material.setBaseColorTexture(texture);
+        material.setAlphaMode(MaterialModelV2.AlphaMode.MASK);
+        material.setDoubleSided(true);
+
+        return material;
+    }
+
+    public static void writeCapturedModel() {
+        var builder = GltfModelBuilder.create();
+
+        var scene = new DefaultSceneModel();
+
+        for(NodeModel node : NODES) {
+            scene.addNode(node);
+        }
         builder.addSceneModel(scene);
-
 
         var model = builder.build();
         var file = new File(FabricLoader.getInstance().getGameDir() + File.separator + "model" + ++MODEL_COUNT + ".gltf");
         var writer = new GltfModelWriter();
+        var minecraft = Minecraft.getInstance();
+        var player = minecraft.player;
         try {
             writer.writeEmbedded(model, file);
+            if(player != null)
+                player.displayClientMessage(Component.literal("Successfully saved model at "+file+" with "+model.getMeshModels().size()+" meshes.").withStyle(ChatFormatting.GREEN), false);
         } catch (Exception e) {
-            e.printStackTrace();
+            LOGGER.error("Error while saving model: ", e);
+            if(player != null)
+                player.displayClientMessage(Component.literal("Error while saving model. Please check logs.").withStyle(ChatFormatting.RED), false);
         }
     }
 
-    public static MeshModel writeMesh(ByteBuffer imageBuffer, float[] vertices, float[] texCoords, int[] indices) {
+    public static MeshModel writeMesh(MaterialModel material, float[] vertices, float[] texCoords, int[] indices) {
 
         var mesh = new DefaultMeshModel();
 
@@ -184,22 +257,9 @@ public class ExporterClient implements ClientModInitializer {
         primitive.setIndices(triangles);
 
         try {
-            var image = new DefaultImageModel();
-            image.setImageData(imageBuffer);
-
-            var texture = new DefaultTextureModel();
-            texture.setImageModel(image);
-            texture.setMinFilter(GL11.GL_NEAREST);
-            texture.setMagFilter(GL11.GL_NEAREST);
-
-            var material = new MaterialModelV2();
-            material.setBaseColorTexture(texture);
-            material.setAlphaMode(MaterialModelV2.AlphaMode.MASK);
-            material.setDoubleSided(true);
-
             primitive.setMaterialModel(material);
         } catch (Exception e) {
-            e.printStackTrace();
+            LOGGER.error("Error while saving mesh: ", e);
         }
 
         mesh.addMeshPrimitiveModel(primitive);
