@@ -10,6 +10,7 @@ import de.javagl.jgltf.model.creation.GltfModelBuilder;
 import de.javagl.jgltf.model.impl.*;
 import de.javagl.jgltf.model.io.GltfModelWriter;
 import de.javagl.jgltf.model.v2.MaterialModelV2;
+import io.github.lucaargolo.exporter.entities.ReferenceBlockDisplay;
 import it.unimi.dsi.fastutil.ints.Int2IntArrayMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectArrayMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
@@ -25,7 +26,6 @@ import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.entity.Display;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import org.joml.*;
@@ -47,9 +47,11 @@ public class ExporterClient implements ClientModInitializer {
 
     public static final Logger LOGGER = LogUtils.getLogger();
     private static int MODEL_COUNT = 0;
+    public static boolean COMPLETE = false;
 
     public static int MARKED_ENTITY = -1;
     public static Matrix4f INVERTED_POSE;
+    public static Vector3f VERTEX_POSITION = new Vector3f(0, 0, 0);
     public static BoundingBox MARKED_BOX;
     public static MultiBufferSource MARKED_BUFFER;
     public static final Object2IntMap<VertexConsumer> MARKED_CONSUMERS = new Object2IntArrayMap<>();
@@ -72,17 +74,26 @@ public class ExporterClient implements ClientModInitializer {
                 var minecraft = Minecraft.getInstance();
                 var dispatcher = minecraft.getEntityRenderDispatcher();
                 var level = context.world();
+                markEntity(Integer.MAX_VALUE);
                 BlockPos.betweenClosed(MARKED_BOX.minX(), MARKED_BOX.minY(), MARKED_BOX.minZ(), MARKED_BOX.maxX(), MARKED_BOX.maxY(), MARKED_BOX.maxZ()).forEach(pos -> {
                     var state = level.getBlockState(pos);
-                    var display = new Display.BlockDisplay(EntityType.BLOCK_DISPLAY, level);
-                    display.setBlockState(state);
-                    display.setId(Integer.MAX_VALUE);
-                    display.updateRenderSubState(true, context.tickDelta());
-                    display.renderState = display.createInterpolatedRenderState(display.createFreshRenderState(), context.tickDelta());
-                    markEntity(Integer.MAX_VALUE);
-                    dispatcher.render(display, pos.getX(), pos.getY(), pos.getZ(), 0f, context.tickDelta(), context.matrixStack(), context.consumers(), LightTexture.FULL_BRIGHT);
+                    if(!state.isAir()) {
+                        var display = new ReferenceBlockDisplay(EntityType.BLOCK_DISPLAY, level);
+                        display.setBlockPos(pos.immutable());
+                        display.setBlockState(state);
+                        display.setId(Integer.MAX_VALUE);
+                        display.updateRenderSubState(true, context.tickDelta());
+                        display.renderState = display.createInterpolatedRenderState(display.createFreshRenderState(), context.tickDelta());
+                        if(COMPLETE) {
+                            markEntity(Integer.MAX_VALUE);
+                        }else{
+                            MARKED_ENTITY = Integer.MAX_VALUE;
+                        }
+                        dispatcher.render(display, pos.getX(), pos.getY(), pos.getZ(), 0f, context.tickDelta(), context.matrixStack(), context.consumers(), LightTexture.FULL_BRIGHT);
+                    }
                 });
                 MARKED_BOX = null;
+                ExporterClient.writeCapturedNode(new Vector3f(0, 0, 0));
                 writeCapturedModel();
             }
         });
@@ -106,7 +117,7 @@ public class ExporterClient implements ClientModInitializer {
         List<Vector3f> colors = CAPTURED_COLORS.computeIfAbsent(glID, i -> new ArrayList<>());
 
         Vector4f reversedVertex = INVERTED_POSE.transform(new Vector4f(x, y, z, 1f));
-        Vector3f capturedVertex = new Vector3f(reversedVertex.x, reversedVertex.y, reversedVertex.z);
+        Vector3f capturedVertex = new Vector3f(reversedVertex.x, reversedVertex.y, reversedVertex.z).add(VERTEX_POSITION);
         int index = vertices.size();
         vertices.add(capturedVertex);
         uvs.add(new Vector2f(u, v));
@@ -221,7 +232,7 @@ public class ExporterClient implements ClientModInitializer {
         var material = new MaterialModelV2();
         material.setBaseColorTexture(texture);
         material.setAlphaMode(MaterialModelV2.AlphaMode.MASK);
-        material.setDoubleSided(true);
+        material.setDoubleSided(false);
 
         return material;
     }

@@ -1,6 +1,7 @@
 package io.github.lucaargolo.exporter;
 
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.BoolArgumentType;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -19,10 +20,23 @@ public class ExporterCommand {
                     .executes(context -> {
                         BlockPos pos1 = BlockPosArgument.getBlockPos(context, "pos1");
                         BlockPos pos2 = BlockPosArgument.getBlockPos(context, "pos2");
+                        ExporterClient.COMPLETE = false;
                         ExporterClient.MARKED_BOX = BoundingBox.fromCorners(pos1, pos2);
                         ExporterClient.NODES.clear();
+                        ExporterClient.MATERIALS.clear();
                         return 1;
                     })
+                    .then(Commands.argument("complete", BoolArgumentType.bool())
+                        .executes(context -> {
+                            BlockPos pos1 = BlockPosArgument.getBlockPos(context, "pos1");
+                            BlockPos pos2 = BlockPosArgument.getBlockPos(context, "pos2");
+                            ExporterClient.COMPLETE = BoolArgumentType.getBool(context, "complete");
+                            ExporterClient.MARKED_BOX = BoundingBox.fromCorners(pos1, pos2);
+                            ExporterClient.NODES.clear();
+                            ExporterClient.MATERIALS.clear();
+                            return 1;
+                        })
+                    )
                 )
             )
             .then(Commands.argument("entity", EntityArgument.entity())
@@ -30,6 +44,7 @@ public class ExporterCommand {
                     Entity entity = EntityArgument.getEntity(context, "entity");
                     ExporterClient.markEntity(entity.getId());
                     ExporterClient.NODES.clear();
+                    ExporterClient.MATERIALS.clear();
                     return 1;
                 })
             )

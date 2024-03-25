@@ -9,3 +9,4 @@ accessible method net/minecraft/world/entity/Display$BlockDisplay updateRenderSu
 accessible field net/minecraft/world/entity/Display renderState Lnet/minecraft/world/entity/Display$RenderState;
 accessible method net/minecraft/world/entity/Display createFreshRenderState ()Lnet/minecraft/world/entity/Display$RenderState;
 accessible method net/minecraft/world/entity/Display createInterpolatedRenderState (Lnet/minecraft/world/entity/Display$RenderState;F)Lnet/minecraft/world/entity/Display$RenderState;
+accessible method net/minecraft/client/renderer/block/ModelBlockRenderer renderQuadList (Lcom/mojang/blaze3d/vertex/PoseStack$Pose;Lcom/mojang/blaze3d/vertex/VertexConsumer;FFFLjava/util/List;II)V

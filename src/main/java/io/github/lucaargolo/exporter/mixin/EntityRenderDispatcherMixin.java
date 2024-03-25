@@ -21,6 +21,12 @@ public class EntityRenderDispatcherMixin {
         if(entity.getId() == ExporterClient.MARKED_ENTITY) {
             ExporterClient.INVERTED_POSE = poseStack.last().pose().invert(new Matrix4f());
             ExporterClient.MARKED_BUFFER = buffer;
+            if(!ExporterClient.COMPLETE && ExporterClient.MARKED_BOX != null) {
+                BoundingBox box = ExporterClient.MARKED_BOX;
+                ExporterClient.VERTEX_POSITION = new Vector3f((float) (x - box.getCenter().getX()), (float) (y - box.getCenter().getY()), (float) (z - box.getCenter().getZ()));
+            }else{
+                ExporterClient.VERTEX_POSITION = new Vector3f(0, 0, 0);
+            }
         }
     }
 
@@ -32,12 +38,12 @@ public class EntityRenderDispatcherMixin {
             ExporterClient.MARKED_BUFFER = null;
             ExporterClient.MARKED_CONSUMERS.clear();
 
-            if(ExporterClient.MARKED_BOX != null) {
-                BoundingBox box = ExporterClient.MARKED_BOX;
-                ExporterClient.writeCapturedNode(new Vector3f((float) (x - box.getCenter().getX()), (float) (y - box.getCenter().getY()), (float) (z - box.getCenter().getZ())));
-            }else{
+            if(ExporterClient.MARKED_BOX == null) {
                 ExporterClient.writeCapturedNode(new Vector3f(0, 0, 0));
                 ExporterClient.writeCapturedModel();
+            }else if(ExporterClient.COMPLETE) {
+                BoundingBox box = ExporterClient.MARKED_BOX;
+                ExporterClient.writeCapturedNode(new Vector3f((float) (x - box.getCenter().getX()), (float) (y - box.getCenter().getY()), (float) (z - box.getCenter().getZ())));
             }
         }
     }
