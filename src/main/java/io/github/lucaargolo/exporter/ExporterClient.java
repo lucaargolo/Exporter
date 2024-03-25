@@ -61,6 +61,7 @@ public class ExporterClient implements ClientModInitializer {
     public static final Int2ObjectArrayMap<List<Vector3f>> CAPTURED_VERTICES = new Int2ObjectArrayMap<>();
     public static final Int2ObjectArrayMap<List<Vector3i>> CAPTURED_TRIANGLES = new Int2ObjectArrayMap<>();
     public static final Int2ObjectArrayMap<List<Vector2f>> CAPTURED_UVS = new Int2ObjectArrayMap<>();
+    public static final Int2ObjectArrayMap<List<Vector3f>> CAPTURED_COLORS = new Int2ObjectArrayMap<>();
     public static final List<NodeModel> NODES = new ArrayList<>();
     public static final Int2ObjectArrayMap<MaterialModel> MATERIALS = new Int2ObjectArrayMap<>();
 
@@ -94,30 +95,33 @@ public class ExporterClient implements ClientModInitializer {
         CAPTURED_VERTICES.clear();
         CAPTURED_TRIANGLES.clear();
         CAPTURED_UVS.clear();
+        CAPTURED_COLORS.clear();
     }
 
-    public static void captureVertex(int glID, float x, float y, float z, float u, float v) {
+    public static void captureVertex(int glID, float x, float y, float z, float u, float v, float r, float g, float b) {
         CAPTURED_IMAGES.add(glID);
         List<Vector3f> vertices = CAPTURED_VERTICES.computeIfAbsent(glID, i -> new ArrayList<>());
         List<Vector3i> triangles = CAPTURED_TRIANGLES.computeIfAbsent(glID, i -> new ArrayList<>());
         List<Vector2f> uvs = CAPTURED_UVS.computeIfAbsent(glID, i -> new ArrayList<>());
+        List<Vector3f> colors = CAPTURED_COLORS.computeIfAbsent(glID, i -> new ArrayList<>());
 
         Vector4f reversedVertex = INVERTED_POSE.transform(new Vector4f(x, y, z, 1f));
         Vector3f capturedVertex = new Vector3f(reversedVertex.x, reversedVertex.y, reversedVertex.z);
         int index = vertices.size();
         vertices.add(capturedVertex);
         uvs.add(new Vector2f(u, v));
+        colors.add(new Vector3f(r, g, b));
 
         int verticeCount = VERTICE_COUNT.computeIfAbsent(glID, i -> 0);
         IntArrayList verticeHolder = VERTICE_HOLDER.computeIfAbsent(glID, i -> new IntArrayList(new int[4]));
         verticeHolder.set(verticeCount % 4, index);
         if((verticeCount+1) % 4 == 0) {
-            int a = verticeHolder.getInt(0);
-            int b = verticeHolder.getInt(1);
-            int c = verticeHolder.getInt(2);
-            int d = verticeHolder.getInt(3);
-            triangles.add(new Vector3i(a, b, c));
-            triangles.add(new Vector3i(d, a, c));
+            int v0 = verticeHolder.getInt(0);
+            int v1 = verticeHolder.getInt(1);
+            int v2 = verticeHolder.getInt(2);
+            int v3 = verticeHolder.getInt(3);
+            triangles.add(new Vector3i(v0, v1, v2));
+            triangles.add(new Vector3i(v3, v0, v2));
         }
         ExporterClient.VERTICE_COUNT.put(glID, verticeCount+1);
     }
@@ -176,6 +180,13 @@ public class ExporterClient implements ClientModInitializer {
                 uvs[i * 2] = uv.x;
                 uvs[i * 2 + 1] = uv.y;
             }
+            float[] colors = new float[CAPTURED_COLORS.get(glId).size() * 3];
+            for (int i = 0; i < CAPTURED_COLORS.get(glId).size(); i++) {
+                Vector3f color = CAPTURED_COLORS.get(glId).get(i);
+                colors[i * 3] = color.x;
+                colors[i * 3 + 1] = color.y;
+                colors[i * 3 + 2] = color.z;
+            }
             int[] triangles = new int[CAPTURED_TRIANGLES.get(glId).size() * 3];
             for (int i = 0; i < CAPTURED_TRIANGLES.get(glId).size(); i++) {
                 Vector3i triangle = CAPTURED_TRIANGLES.get(glId).get(i);
@@ -186,7 +197,7 @@ public class ExporterClient implements ClientModInitializer {
             try {
                 var child = new DefaultNodeModel();
                 var material = MATERIALS.computeIfAbsent(glId, ExporterClient::getMaterial);
-                MeshModel mesh = writeMesh(material, vertices, uvs, triangles);
+                MeshModel mesh = writeMesh(material, vertices, uvs, colors, triangles);
                 child.addMeshModel(mesh);
                 node.addChild(child);
             } catch (Exception e) {
@@ -226,7 +237,7 @@ public class ExporterClient implements ClientModInitializer {
         builder.addSceneModel(scene);
 
         var model = builder.build();
-        var file = new File(FabricLoader.getInstance().getGameDir() + File.separator + "model" + ++MODEL_COUNT + ".gltf");
+        var file = new File(FabricLoader.getInstance().getGameDir() + File.separator + "models" + File.separator + "model" + ++MODEL_COUNT + ".gltf");
         var writer = new GltfModelWriter();
         var minecraft = Minecraft.getInstance();
         var player = minecraft.player;
@@ -241,7 +252,7 @@ public class ExporterClient implements ClientModInitializer {
         }
     }
 
-    public static MeshModel writeMesh(MaterialModel material, float[] vertices, float[] texCoords, int[] indices) {
+    public static MeshModel writeMesh(MaterialModel material, float[] vertices, float[] texCoords, float[] colors, int[] indices) {
 
         var mesh = new DefaultMeshModel();
 
@@ -252,6 +263,9 @@ public class ExporterClient implements ClientModInitializer {
 
         var texCoord = AccessorModels.createFloat2D(FloatBuffer.wrap(texCoords));
         primitive.putAttribute("TEXCOORD_0", texCoord);
+
+        var color = AccessorModels.createFloat3D(FloatBuffer.wrap(colors));
+        primitive.putAttribute("COLOR_0", color);
 
         var triangles = AccessorModels.createUnsignedIntScalar(IntBuffer.wrap(indices));
         primitive.setIndices(triangles);
