@@ -7,6 +7,7 @@
     "BlockDisplayRendererMixin",
     "BufferBuilderMixin",
     "BufferSourceMixin",
+    "BufferVertexConsumerMixin",
     "EntityRenderDispatcherMixin"
   ],
   "injectors": {

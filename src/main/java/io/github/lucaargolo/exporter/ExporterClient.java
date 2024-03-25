@@ -23,12 +23,17 @@ import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
+import net.minecraft.world.phys.AABB;
 import org.joml.*;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
@@ -57,7 +62,6 @@ public class ExporterClient implements ClientModInitializer {
     public static MultiBufferSource MARKED_BUFFER;
     public static final Object2IntMap<VertexConsumer> MARKED_CONSUMERS = new Object2IntArrayMap<>();
 
-
     public static final IntArraySet CAPTURED_IMAGES = new IntArraySet();
     public static final Int2IntArrayMap VERTICE_COUNT = new Int2IntArrayMap();
     public static final Int2ObjectArrayMap<IntArrayList> VERTICE_HOLDER = new Int2ObjectArrayMap<>();
@@ -65,8 +69,14 @@ public class ExporterClient implements ClientModInitializer {
     public static final Int2ObjectArrayMap<List<Vector3i>> CAPTURED_TRIANGLES = new Int2ObjectArrayMap<>();
     public static final Int2ObjectArrayMap<List<Vector2f>> CAPTURED_UVS = new Int2ObjectArrayMap<>();
     public static final Int2ObjectArrayMap<List<Vector3f>> CAPTURED_COLORS = new Int2ObjectArrayMap<>();
+    public static final Int2ObjectArrayMap<List<Vector3f>> CAPTURED_NORMALS = new Int2ObjectArrayMap<>();
+
     public static final List<NodeModel> NODES = new ArrayList<>();
     public static final Int2ObjectArrayMap<MaterialModel> MATERIALS = new Int2ObjectArrayMap<>();
+
+    private static boolean UV = false;
+    private static boolean COLOR = false;
+    private static boolean NORMAL = false;
 
     @Override
     public void onInitializeClient() {
@@ -74,28 +84,67 @@ public class ExporterClient implements ClientModInitializer {
         WorldRenderEvents.BEFORE_ENTITIES.register(context -> {
             if(MARKED_BOX != null) {
                 var minecraft = Minecraft.getInstance();
-                var dispatcher = minecraft.getEntityRenderDispatcher();
+                var entityDispatcher = minecraft.getEntityRenderDispatcher();
+                var blockEntityDispatcher = minecraft.getBlockEntityRenderDispatcher();
+
                 var level = context.world();
                 markEntity(Integer.MAX_VALUE);
                 BlockPos.betweenClosed(MARKED_BOX.minX(), MARKED_BOX.minY(), MARKED_BOX.minZ(), MARKED_BOX.maxX(), MARKED_BOX.maxY(), MARKED_BOX.maxZ()).forEach(pos -> {
                     var state = level.getBlockState(pos);
                     if(!state.isAir()) {
-                        var display = new ReferenceBlockDisplay(EntityType.BLOCK_DISPLAY, level);
-                        display.setBlockPos(pos.immutable());
-                        display.setBlockState(state);
-                        display.setId(Integer.MAX_VALUE);
-                        display.updateRenderSubState(true, context.tickDelta());
-                        display.renderState = display.createInterpolatedRenderState(display.createFreshRenderState(), context.tickDelta());
-                        if(COMPLETE) {
-                            markEntity(Integer.MAX_VALUE);
+                        if(state.getRenderShape() == RenderShape.ENTITYBLOCK_ANIMATED) {
+                            int i = LevelRenderer.getLightColor(level, pos);
+                            var blockEntity = level.getBlockEntity(pos);
+                            if(blockEntity != null) {
+                                var renderer = blockEntityDispatcher.getRenderer(blockEntity);
+                                if(renderer != null) {
+                                    if(ExporterClient.COMPLETE) {
+                                        markEntity(Integer.MAX_VALUE);
+                                    }
+                                    ExporterClient.INVERTED_POSE = context.matrixStack().last().pose().invert(new Matrix4f());
+                                    ExporterClient.MARKED_BUFFER = context.consumers();
+                                    if(!ExporterClient.COMPLETE && ExporterClient.MARKED_BOX != null) {
+                                        BoundingBox box = ExporterClient.MARKED_BOX;
+                                        ExporterClient.VERTEX_POSITION = new Vector3f((float) (pos.getX() - box.getCenter().getX() - 0.5), (float) (pos.getY() - box.getCenter().getY() - 0.5), (float) (pos.getZ() - box.getCenter().getZ() - 0.5));
+                                    }else{
+                                        ExporterClient.VERTEX_POSITION = new Vector3f(0, 0, 0);
+                                    }
+                                    renderer.render(blockEntity, context.tickDelta(), context.matrixStack(), context.consumers(), i, OverlayTexture.NO_OVERLAY);
+                                    ExporterClient.INVERTED_POSE = null;
+                                    ExporterClient.MARKED_BUFFER = null;
+                                    ExporterClient.MARKED_CONSUMERS.clear();
+                                    if(ExporterClient.COMPLETE) {
+                                        BoundingBox box = ExporterClient.MARKED_BOX;
+                                        ExporterClient.writeCapturedNode(new Vector3f((float) (pos.getX() - box.getCenter().getX() - 0.5), (float) (pos.getY() - box.getCenter().getY() - 0.5), (float) (pos.getZ() - box.getCenter().getZ() - 0.5)));
+                                    }
+                                }
+                            }
                         }else{
-                            MARKED_ENTITY = Integer.MAX_VALUE;
+                            var display = new ReferenceBlockDisplay(EntityType.BLOCK_DISPLAY, level);
+                            display.setBlockPos(pos.immutable());
+                            display.setBlockState(state);
+                            display.setId(Integer.MAX_VALUE);
+                            display.updateRenderSubState(true, context.tickDelta());
+                            display.renderState = display.createInterpolatedRenderState(display.createFreshRenderState(), context.tickDelta());
+                            if(COMPLETE) {
+                                markEntity(Integer.MAX_VALUE);
+                            }else{
+                                MARKED_ENTITY = Integer.MAX_VALUE;
+                            }
+                            entityDispatcher.render(display, pos.getX(), pos.getY(), pos.getZ(), 0f, context.tickDelta(), context.matrixStack(), context.consumers(), LightTexture.FULL_BRIGHT);
+
                         }
-                        dispatcher.render(display, pos.getX(), pos.getY(), pos.getZ(), 0f, context.tickDelta(), context.matrixStack(), context.consumers(), LightTexture.FULL_BRIGHT);
                     }
                 });
+                if(!COMPLETE)
+                    ExporterClient.writeCapturedNode(new Vector3f(0, 0, 0));
+                AABB aabb = AABB.of(MARKED_BOX);
+                level.getEntities(null, aabb).forEach(entity -> {
+                    markEntity(entity.getId());
+                    float rot = Mth.lerp(context.tickDelta(), entity.yRotO, entity.getYRot());
+                    entityDispatcher.render(entity, entity.getX(), entity.getY(), entity.getZ(), rot, context.tickDelta(), context.matrixStack(), context.consumers(), LightTexture.FULL_BRIGHT);
+                });
                 MARKED_BOX = null;
-                ExporterClient.writeCapturedNode(new Vector3f(0, 0, 0));
                 writeCapturedModel();
             }
         });
@@ -109,21 +158,18 @@ public class ExporterClient implements ClientModInitializer {
         CAPTURED_TRIANGLES.clear();
         CAPTURED_UVS.clear();
         CAPTURED_COLORS.clear();
+        CAPTURED_NORMALS.clear();
     }
 
-    public static void captureVertex(int glID, float x, float y, float z, float u, float v, float r, float g, float b) {
+    public static void captureVertex(int glID, float x, float y, float z) {
         CAPTURED_IMAGES.add(glID);
         List<Vector3f> vertices = CAPTURED_VERTICES.computeIfAbsent(glID, i -> new ArrayList<>());
         List<Vector3i> triangles = CAPTURED_TRIANGLES.computeIfAbsent(glID, i -> new ArrayList<>());
-        List<Vector2f> uvs = CAPTURED_UVS.computeIfAbsent(glID, i -> new ArrayList<>());
-        List<Vector3f> colors = CAPTURED_COLORS.computeIfAbsent(glID, i -> new ArrayList<>());
 
         Vector4f reversedVertex = INVERTED_POSE.transform(new Vector4f(x, y, z, 1f));
         Vector3f capturedVertex = new Vector3f(reversedVertex.x, reversedVertex.y, reversedVertex.z).add(VERTEX_POSITION);
         int index = vertices.size();
         vertices.add(capturedVertex);
-        uvs.add(new Vector2f(u, v));
-        colors.add(new Vector3f(r, g, b));
 
         int verticeCount = VERTICE_COUNT.computeIfAbsent(glID, i -> 0);
         IntArrayList verticeHolder = VERTICE_HOLDER.computeIfAbsent(glID, i -> new IntArrayList(new int[4]));
@@ -137,6 +183,40 @@ public class ExporterClient implements ClientModInitializer {
             triangles.add(new Vector3i(v3, v0, v2));
         }
         ExporterClient.VERTICE_COUNT.put(glID, verticeCount+1);
+
+        COLOR = false;
+        UV = false;
+        NORMAL = false;
+    }
+
+    public static void captureUv(int glID, float u, float v) {
+        CAPTURED_IMAGES.add(glID);
+        List<Vector2f> uvs = CAPTURED_UVS.computeIfAbsent(glID, i -> new ArrayList<>());
+        uvs.add(new Vector2f(u, v));
+        UV = true;
+    }
+
+    public static void captureRgb(int glID, float r, float g, float b) {
+        CAPTURED_IMAGES.add(glID);
+        List<Vector3f> colors = CAPTURED_COLORS.computeIfAbsent(glID, i -> new ArrayList<>());
+        colors.add(new Vector3f(r, g, b));
+        COLOR = true;
+    }
+
+    public static void captureNormal(int glID, float x, float y, float z) {
+        CAPTURED_IMAGES.add(glID);
+        List<Vector3f> normals = CAPTURED_NORMALS.computeIfAbsent(glID, i -> new ArrayList<>());
+        normals.add(new Vector3f(x, y, z));
+        NORMAL = true;
+    }
+
+    public static void endCapture(int glID) {
+        if(!UV)
+            captureUv(glID, 0f, 0f);
+        if(!COLOR)
+            captureRgb(glID, 1f, 1f, 1f);
+        if(!NORMAL)
+            captureNormal(glID, 1f, 1f, 1f);
     }
 
     public static ByteBuffer extractTexture(int glId) {
@@ -200,6 +280,13 @@ public class ExporterClient implements ClientModInitializer {
                 colors[i * 3 + 1] = color.y;
                 colors[i * 3 + 2] = color.z;
             }
+            float[] normals = new float[CAPTURED_NORMALS.get(glId).size() * 3];
+            for (int i = 0; i < CAPTURED_NORMALS.get(glId).size(); i++) {
+                Vector3f normal = CAPTURED_NORMALS.get(glId).get(i);
+                normals[i * 3] = normal.x;
+                normals[i * 3 + 1] = normal.y;
+                normals[i * 3 + 2] = normal.z;
+            }
             int[] triangles = new int[CAPTURED_TRIANGLES.get(glId).size() * 3];
             for (int i = 0; i < CAPTURED_TRIANGLES.get(glId).size(); i++) {
                 Vector3i triangle = CAPTURED_TRIANGLES.get(glId).get(i);
@@ -210,7 +297,7 @@ public class ExporterClient implements ClientModInitializer {
             try {
                 var child = new DefaultNodeModel();
                 var material = MATERIALS.computeIfAbsent(glId, ExporterClient::getMaterial);
-                MeshModel mesh = writeMesh(material, vertices, uvs, colors, triangles);
+                MeshModel mesh = writeMesh(material, vertices, uvs, colors, normals, triangles);
                 child.addMeshModel(mesh);
                 node.addChild(child);
             } catch (Exception e) {
@@ -265,7 +352,7 @@ public class ExporterClient implements ClientModInitializer {
         }
     }
 
-    public static MeshModel writeMesh(MaterialModel material, float[] vertices, float[] texCoords, float[] colors, int[] indices) {
+    public static MeshModel writeMesh(MaterialModel material, float[] vertices, float[] texCoords, float[] colors, float[] normals, int[] indices) {
 
         var mesh = new DefaultMeshModel();
 
@@ -279,6 +366,9 @@ public class ExporterClient implements ClientModInitializer {
 
         var color = AccessorModels.createFloat3D(FloatBuffer.wrap(colors));
         primitive.putAttribute("COLOR_0", color);
+
+        var normal = AccessorModels.createFloat3D(FloatBuffer.wrap(normals));
+        primitive.putAttribute("NORMAL", normal);
 
         var triangles = AccessorModels.createUnsignedIntScalar(IntBuffer.wrap(indices));
         primitive.setIndices(triangles);
