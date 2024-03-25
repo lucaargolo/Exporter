@@ -18,6 +18,7 @@ import it.unimi.dsi.fastutil.ints.IntArraySet;
 import it.unimi.dsi.fastutil.objects.Object2IntArrayMap;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.ChatFormatting;
@@ -69,6 +70,7 @@ public class ExporterClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        ClientCommandRegistrationCallback.EVENT.register(ExporterCommand::register);
         WorldRenderEvents.BEFORE_ENTITIES.register(context -> {
             if(MARKED_BOX != null) {
                 var minecraft = Minecraft.getInstance();

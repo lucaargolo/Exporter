@@ -10,3 +10,16 @@ accessible field net/minecraft/world/entity/Display renderState Lnet/minecraft/w
 accessible method net/minecraft/world/entity/Display createFreshRenderState ()Lnet/minecraft/world/entity/Display$RenderState;
 accessible method net/minecraft/world/entity/Display createInterpolatedRenderState (Lnet/minecraft/world/entity/Display$RenderState;F)Lnet/minecraft/world/entity/Display$RenderState;
 accessible method net/minecraft/client/renderer/block/ModelBlockRenderer renderQuadList (Lcom/mojang/blaze3d/vertex/PoseStack$Pose;Lcom/mojang/blaze3d/vertex/VertexConsumer;FFFLjava/util/List;II)V
+accessible method net/minecraft/client/multiplayer/ClientLevel getEntities ()Lnet/minecraft/world/level/entity/LevelEntityGetter;
+accessible method net/minecraft/client/player/AbstractClientPlayer getPlayerInfo ()Lnet/minecraft/client/multiplayer/PlayerInfo;
+accessible field net/minecraft/commands/arguments/selector/EntitySelector maxResults I
+accessible field net/minecraft/commands/arguments/selector/EntitySelector includesEntities Z
+accessible field net/minecraft/commands/arguments/selector/EntitySelector predicate Ljava/util/function/Predicate;
+accessible field net/minecraft/commands/arguments/selector/EntitySelector range Lnet/minecraft/advancements/critereon/MinMaxBounds$Doubles;
+accessible field net/minecraft/commands/arguments/selector/EntitySelector position Ljava/util/function/Function;
+accessible field net/minecraft/commands/arguments/selector/EntitySelector aabb Lnet/minecraft/world/phys/AABB;
+accessible field net/minecraft/commands/arguments/selector/EntitySelector order Ljava/util/function/BiConsumer;
+accessible field net/minecraft/commands/arguments/selector/EntitySelector currentEntity Z
+accessible field net/minecraft/commands/arguments/selector/EntitySelector playerName Ljava/lang/String;
+accessible field net/minecraft/commands/arguments/selector/EntitySelector entityUUID Ljava/util/UUID;
+accessible field net/minecraft/commands/arguments/selector/EntitySelector type Lnet/minecraft/world/level/entity/EntityTypeTest;

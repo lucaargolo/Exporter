@@ -12,9 +12,6 @@
   "icon": "assets/exporter/icon.png",
   "environment": "client",
   "entrypoints": {
-    "main": [
-      "io.github.lucaargolo.exporter.Exporter"
-    ],
     "client": [
       "io.github.lucaargolo.exporter.ExporterClient"
     ]

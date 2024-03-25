@@ -2,34 +2,34 @@ package io.github.lucaargolo.exporter;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.BoolArgumentType;
+import io.github.lucaargolo.exporter.misc.ClientBlockPosArgument;
+import io.github.lucaargolo.exporter.misc.ClientEntityArgument;
+import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
+import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.commands.CommandBuildContext;
-import net.minecraft.commands.CommandSourceStack;
-import net.minecraft.commands.Commands;
-import net.minecraft.commands.arguments.EntityArgument;
-import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 
 public class ExporterCommand {
 
-    public static void register(CommandDispatcher<CommandSourceStack> dispatcher, CommandBuildContext build, Commands.CommandSelection selection) {
-        dispatcher.register(Commands.literal("exporter")
-            .then(Commands.argument("pos1", BlockPosArgument.blockPos())
-                .then(Commands.argument("pos2", BlockPosArgument.blockPos())
+    public static void register(CommandDispatcher<FabricClientCommandSource> dispatcher, CommandBuildContext build) {
+        dispatcher.register(ClientCommandManager.literal("exporter")
+            .then(ClientCommandManager.argument("pos1", ClientBlockPosArgument.blockPos())
+                .then(ClientCommandManager.argument("pos2", ClientBlockPosArgument.blockPos())
                     .executes(context -> {
-                        BlockPos pos1 = BlockPosArgument.getBlockPos(context, "pos1");
-                        BlockPos pos2 = BlockPosArgument.getBlockPos(context, "pos2");
+                        BlockPos pos1 = ClientBlockPosArgument.getBlockPos(context, "pos1");
+                        BlockPos pos2 = ClientBlockPosArgument.getBlockPos(context, "pos2");
                         ExporterClient.COMPLETE = false;
                         ExporterClient.MARKED_BOX = BoundingBox.fromCorners(pos1, pos2);
                         ExporterClient.NODES.clear();
                         ExporterClient.MATERIALS.clear();
                         return 1;
                     })
-                    .then(Commands.argument("complete", BoolArgumentType.bool())
+                    .then(ClientCommandManager.argument("complete", BoolArgumentType.bool())
                         .executes(context -> {
-                            BlockPos pos1 = BlockPosArgument.getBlockPos(context, "pos1");
-                            BlockPos pos2 = BlockPosArgument.getBlockPos(context, "pos2");
+                            BlockPos pos1 = ClientBlockPosArgument.getBlockPos(context, "pos1");
+                            BlockPos pos2 = ClientBlockPosArgument.getBlockPos(context, "pos2");
                             ExporterClient.COMPLETE = BoolArgumentType.getBool(context, "complete");
                             ExporterClient.MARKED_BOX = BoundingBox.fromCorners(pos1, pos2);
                             ExporterClient.NODES.clear();
@@ -39,9 +39,9 @@ public class ExporterCommand {
                     )
                 )
             )
-            .then(Commands.argument("entity", EntityArgument.entity())
+            .then(ClientCommandManager.argument("entity", ClientEntityArgument.entity())
                 .executes(context -> {
-                    Entity entity = EntityArgument.getEntity(context, "entity");
+                    Entity entity = ClientEntityArgument.getEntity(context, "entity");
                     ExporterClient.markEntity(entity.getId());
                     ExporterClient.NODES.clear();
                     ExporterClient.MATERIALS.clear();
