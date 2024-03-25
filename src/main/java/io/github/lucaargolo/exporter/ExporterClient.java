@@ -78,6 +78,14 @@ public class ExporterClient implements ClientModInitializer {
     private static boolean COLOR = false;
     private static boolean NORMAL = false;
 
+    /**TODO:
+     *  - Since we are now using Minecraft's own face culling, we need to add a condition to render the border faces.
+     *  - Fix problem with fluid rendering, some stripes?
+     *  - Fix rgba for transparency
+     *  - Fix normals
+     *  - Check RenderType before building material (for DoubleSide and Alpha mode etc)
+     */
+
     @Override
     public void onInitializeClient() {
         ClientCommandRegistrationCallback.EVENT.register(ExporterCommand::register);
