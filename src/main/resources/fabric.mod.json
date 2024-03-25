@@ -19,6 +19,7 @@
       "io.github.lucaargolo.exporter.ExporterClient"
     ]
   },
+  "accessWidener": "exporter.accesswidener",
   "mixins": [
     "exporter.mixins.json"
   ],

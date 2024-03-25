@@ -35,6 +35,14 @@ dependencies {
     }
     implementation("com.fasterxml.jackson.core:jackson-databind:2.17.0")
 
+    include("de.javagl:jgltf-impl-v1:2.0.3")
+    include("de.javagl:jgltf-impl-v2:2.0.3")
+    include("de.javagl:jgltf-model:2.0.3")
+    include("de.javagl:jgltf-model-builder:2.0.3")
+    include("com.fasterxml.jackson.core:jackson-annotations:2.17.0")
+    include("com.fasterxml.jackson.core:jackson-core:2.17.0")
+    include("com.fasterxml.jackson.core:jackson-databind:2.17.0")
+
 }
 
 processResources {
