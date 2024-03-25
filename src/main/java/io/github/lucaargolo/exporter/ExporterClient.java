@@ -23,16 +23,16 @@ import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.LevelRenderer;
-import net.minecraft.client.renderer.LightTexture;
-import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.*;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
+import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.phys.AABB;
 import org.joml.*;
 import org.lwjgl.BufferUtils;
@@ -84,6 +84,7 @@ public class ExporterClient implements ClientModInitializer {
         WorldRenderEvents.BEFORE_ENTITIES.register(context -> {
             if(MARKED_BOX != null) {
                 var minecraft = Minecraft.getInstance();
+                var blockDispatcher = minecraft.getBlockRenderer();
                 var entityDispatcher = minecraft.getEntityRenderDispatcher();
                 var blockEntityDispatcher = minecraft.getBlockEntityRenderDispatcher();
 
@@ -119,18 +120,52 @@ public class ExporterClient implements ClientModInitializer {
                             }
                         }
                         if(state.getRenderShape() != RenderShape.ENTITYBLOCK_ANIMATED) {
-                            var display = new ReferenceBlockDisplay(EntityType.BLOCK_DISPLAY, level);
-                            display.setBlockPos(pos.immutable());
-                            display.setBlockState(state);
-                            display.setId(Integer.MAX_VALUE);
-                            display.updateRenderSubState(true, context.tickDelta());
-                            display.renderState = display.createInterpolatedRenderState(display.createFreshRenderState(), context.tickDelta());
-                            if (COMPLETE) {
-                                markEntity(Integer.MAX_VALUE);
-                            } else {
-                                MARKED_ENTITY = Integer.MAX_VALUE;
+                            if(ExporterClient.COMPLETE) {
+                                var display = new ReferenceBlockDisplay(EntityType.BLOCK_DISPLAY, level);
+                                display.setBlockPos(pos.immutable());
+                                display.setBlockState(state);
+                                display.setId(Integer.MAX_VALUE);
+                                display.updateRenderSubState(true, context.tickDelta());
+                                display.renderState = display.createInterpolatedRenderState(display.createFreshRenderState(), context.tickDelta());
+                                if (COMPLETE) {
+                                    markEntity(Integer.MAX_VALUE);
+                                } else {
+                                    MARKED_ENTITY = Integer.MAX_VALUE;
+                                }
+                                entityDispatcher.render(display, pos.getX(), pos.getY(), pos.getZ(), 0f, context.tickDelta(), context.matrixStack(), context.consumers(), LightTexture.FULL_BRIGHT);
+                            }else{
+                                ExporterClient.MARKED_BUFFER = context.consumers();
+                                BoundingBox box = ExporterClient.MARKED_BOX;
+                                ExporterClient.INVERTED_POSE = context.matrixStack().last().pose().invert(new Matrix4f());
+                                ExporterClient.VERTEX_POSITION = new Vector3f((float) (pos.getX() - box.getCenter().getX() - 0.5), (float) (pos.getY() - box.getCenter().getY() - 0.5), (float) (pos.getZ() - box.getCenter().getZ() - 0.5));
+                                if(MARKED_BUFFER != null) {
+                                    RenderType renderType = ItemBlockRenderTypes.getChunkRenderType(state);
+                                    VertexConsumer consumer = ExporterClient.MARKED_BUFFER.getBuffer(renderType);
+                                    blockDispatcher.renderBatched(state, pos, level, context.matrixStack(), consumer, true, RandomSource.create());
+                                }
+                                ExporterClient.INVERTED_POSE = null;
+                                ExporterClient.MARKED_BUFFER = null;
+                                ExporterClient.MARKED_CONSUMERS.clear();
                             }
-                            entityDispatcher.render(display, pos.getX(), pos.getY(), pos.getZ(), 0f, context.tickDelta(), context.matrixStack(), context.consumers(), LightTexture.FULL_BRIGHT);
+                        }
+                        FluidState fluidState = state.getFluidState();
+                        if(!fluidState.isEmpty()) {
+                            if(ExporterClient.COMPLETE) {
+                                markEntity(Integer.MAX_VALUE);
+                            }
+                            ExporterClient.MARKED_BUFFER = context.consumers();
+                            BoundingBox box = ExporterClient.MARKED_BOX;
+                            ExporterClient.VERTEX_POSITION = new Vector3f(-pos.getX()%16 + pos.getX() - box.getCenter().getX() - 0.5f - 16f, -pos.getY()%16 + pos.getY() - box.getCenter().getY() - 0.5f, -pos.getZ()%16 + pos.getZ() - box.getCenter().getZ() - 0.5f);
+                            if(MARKED_BUFFER != null) {
+                                RenderType renderType = ItemBlockRenderTypes.getRenderLayer(fluidState);
+                                VertexConsumer consumer = ExporterClient.MARKED_BUFFER.getBuffer(renderType);
+                                blockDispatcher.renderLiquid(pos, level, consumer, state, fluidState);
+                            }
+                            ExporterClient.MARKED_BUFFER = null;
+                            ExporterClient.MARKED_CONSUMERS.clear();
+                            if(ExporterClient.COMPLETE) {
+                                ExporterClient.writeCapturedNode(new Vector3f(0, 0, 0));
+                            }
                         }
                     }
                 });
@@ -164,7 +199,7 @@ public class ExporterClient implements ClientModInitializer {
         List<Vector3f> vertices = CAPTURED_VERTICES.computeIfAbsent(glID, i -> new ArrayList<>());
         List<Vector3i> triangles = CAPTURED_TRIANGLES.computeIfAbsent(glID, i -> new ArrayList<>());
 
-        Vector4f reversedVertex = INVERTED_POSE.transform(new Vector4f(x, y, z, 1f));
+        Vector4f reversedVertex = INVERTED_POSE != null ? INVERTED_POSE.transform(new Vector4f(x, y, z, 1f)) : new Vector4f(x, y, z, 1f);
         Vector3f capturedVertex = new Vector3f(reversedVertex.x, reversedVertex.y, reversedVertex.z).add(VERTEX_POSITION);
         int index = vertices.size();
         vertices.add(capturedVertex);
