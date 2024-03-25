@@ -2,7 +2,6 @@ package io.github.lucaargolo.exporter.mixin;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import io.github.lucaargolo.exporter.ExporterClient;
 import io.github.lucaargolo.exporter.entities.ReferenceBlockDisplay;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ItemBlockRenderTypes;
@@ -12,7 +11,6 @@ import net.minecraft.client.renderer.block.ModelBlockRenderer;
 import net.minecraft.client.renderer.entity.DisplayRenderer;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.resources.model.BakedModel;
-import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Display;
@@ -49,10 +47,7 @@ public class BlockDisplayRendererMixin {
 
             for(Direction direction : Direction.values()) {
                 randomSource.setSeed(42L);
-                BlockPos adjacentPos = reference.getBlockPos().offset(direction.getNormal());
-                BlockState adjacentState = level.getBlockState(adjacentPos);
-                if(ExporterClient.COMPLETE || (!adjacentState.isCollisionShapeFullBlock(level, adjacentPos) || (ExporterClient.MARKED_BOX != null && !ExporterClient.MARKED_BOX.isInside(adjacentPos))))
-                    ModelBlockRenderer.renderQuadList(poseStack.last(), consumer, r, g, b, bakedModel.getQuads(state, direction, randomSource), i, OverlayTexture.NO_OVERLAY);
+                ModelBlockRenderer.renderQuadList(poseStack.last(), consumer, r, g, b, bakedModel.getQuads(state, direction, randomSource), i, OverlayTexture.NO_OVERLAY);
             }
 
             randomSource.setSeed(42L);
