@@ -37,7 +37,7 @@ public class BlockDisplayRendererMixin {
         Level level = blockDisplay.level();
         BlockState state = blockRenderState.blockState();
         RenderShape renderShape = state.getRenderShape();
-        if (!ExporterClient.COMPLETE && renderShape == RenderShape.MODEL && blockDisplay instanceof ReferenceBlockDisplay reference && state.isCollisionShapeFullBlock(level, reference.getBlockPos())) {
+        if (renderShape == RenderShape.MODEL && blockDisplay instanceof ReferenceBlockDisplay reference && state.isCollisionShapeFullBlock(level, reference.getBlockPos())) {
             BakedModel bakedModel = this.blockRenderer.getBlockModel(state);
             int color = minecraft.getBlockColors().getColor(state, level, reference.getBlockPos(), 0);
             float r = (float) (color >> 16 & 0xFF) / 255.0F;
@@ -51,7 +51,7 @@ public class BlockDisplayRendererMixin {
                 randomSource.setSeed(42L);
                 BlockPos adjacentPos = reference.getBlockPos().offset(direction.getNormal());
                 BlockState adjacentState = level.getBlockState(adjacentPos);
-                if(!adjacentState.isCollisionShapeFullBlock(level, adjacentPos) || (ExporterClient.MARKED_BOX != null && !ExporterClient.MARKED_BOX.isInside(adjacentPos)))
+                if(ExporterClient.COMPLETE || (!adjacentState.isCollisionShapeFullBlock(level, adjacentPos) || (ExporterClient.MARKED_BOX != null && !ExporterClient.MARKED_BOX.isInside(adjacentPos))))
                     ModelBlockRenderer.renderQuadList(poseStack.last(), consumer, r, g, b, bakedModel.getQuads(state, direction, randomSource), i, OverlayTexture.NO_OVERLAY);
             }
 
