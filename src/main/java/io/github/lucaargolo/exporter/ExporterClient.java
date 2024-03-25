@@ -92,47 +92,45 @@ public class ExporterClient implements ClientModInitializer {
                 BlockPos.betweenClosed(MARKED_BOX.minX(), MARKED_BOX.minY(), MARKED_BOX.minZ(), MARKED_BOX.maxX(), MARKED_BOX.maxY(), MARKED_BOX.maxZ()).forEach(pos -> {
                     var state = level.getBlockState(pos);
                     if(!state.isAir()) {
-                        if(state.getRenderShape() == RenderShape.ENTITYBLOCK_ANIMATED) {
-                            int i = LevelRenderer.getLightColor(level, pos);
-                            var blockEntity = level.getBlockEntity(pos);
-                            if(blockEntity != null) {
-                                var renderer = blockEntityDispatcher.getRenderer(blockEntity);
-                                if(renderer != null) {
-                                    if(ExporterClient.COMPLETE) {
-                                        markEntity(Integer.MAX_VALUE);
-                                    }
-                                    ExporterClient.INVERTED_POSE = context.matrixStack().last().pose().invert(new Matrix4f());
-                                    ExporterClient.MARKED_BUFFER = context.consumers();
-                                    if(!ExporterClient.COMPLETE && ExporterClient.MARKED_BOX != null) {
-                                        BoundingBox box = ExporterClient.MARKED_BOX;
-                                        ExporterClient.VERTEX_POSITION = new Vector3f((float) (pos.getX() - box.getCenter().getX() - 0.5), (float) (pos.getY() - box.getCenter().getY() - 0.5), (float) (pos.getZ() - box.getCenter().getZ() - 0.5));
-                                    }else{
-                                        ExporterClient.VERTEX_POSITION = new Vector3f(0, 0, 0);
-                                    }
-                                    renderer.render(blockEntity, context.tickDelta(), context.matrixStack(), context.consumers(), i, OverlayTexture.NO_OVERLAY);
-                                    ExporterClient.INVERTED_POSE = null;
-                                    ExporterClient.MARKED_BUFFER = null;
-                                    ExporterClient.MARKED_CONSUMERS.clear();
-                                    if(ExporterClient.COMPLETE) {
-                                        BoundingBox box = ExporterClient.MARKED_BOX;
-                                        ExporterClient.writeCapturedNode(new Vector3f((float) (pos.getX() - box.getCenter().getX() - 0.5), (float) (pos.getY() - box.getCenter().getY() - 0.5), (float) (pos.getZ() - box.getCenter().getZ() - 0.5)));
-                                    }
+                        int i = LevelRenderer.getLightColor(level, pos);
+                        var blockEntity = level.getBlockEntity(pos);
+                        if(blockEntity != null) {
+                            var renderer = blockEntityDispatcher.getRenderer(blockEntity);
+                            if(renderer != null) {
+                                if(ExporterClient.COMPLETE) {
+                                    markEntity(Integer.MAX_VALUE);
+                                }
+                                ExporterClient.INVERTED_POSE = context.matrixStack().last().pose().invert(new Matrix4f());
+                                ExporterClient.MARKED_BUFFER = context.consumers();
+                                if(!ExporterClient.COMPLETE && ExporterClient.MARKED_BOX != null) {
+                                    BoundingBox box = ExporterClient.MARKED_BOX;
+                                    ExporterClient.VERTEX_POSITION = new Vector3f((float) (pos.getX() - box.getCenter().getX() - 0.5), (float) (pos.getY() - box.getCenter().getY() - 0.5), (float) (pos.getZ() - box.getCenter().getZ() - 0.5));
+                                }else{
+                                    ExporterClient.VERTEX_POSITION = new Vector3f(0, 0, 0);
+                                }
+                                renderer.render(blockEntity, context.tickDelta(), context.matrixStack(), context.consumers(), i, OverlayTexture.NO_OVERLAY);
+                                ExporterClient.INVERTED_POSE = null;
+                                ExporterClient.MARKED_BUFFER = null;
+                                ExporterClient.MARKED_CONSUMERS.clear();
+                                if(ExporterClient.COMPLETE) {
+                                    BoundingBox box = ExporterClient.MARKED_BOX;
+                                    ExporterClient.writeCapturedNode(new Vector3f((float) (pos.getX() - box.getCenter().getX() - 0.5), (float) (pos.getY() - box.getCenter().getY() - 0.5), (float) (pos.getZ() - box.getCenter().getZ() - 0.5)));
                                 }
                             }
-                        }else{
+                        }
+                        if(state.getRenderShape() != RenderShape.ENTITYBLOCK_ANIMATED) {
                             var display = new ReferenceBlockDisplay(EntityType.BLOCK_DISPLAY, level);
                             display.setBlockPos(pos.immutable());
                             display.setBlockState(state);
                             display.setId(Integer.MAX_VALUE);
                             display.updateRenderSubState(true, context.tickDelta());
                             display.renderState = display.createInterpolatedRenderState(display.createFreshRenderState(), context.tickDelta());
-                            if(COMPLETE) {
+                            if (COMPLETE) {
                                 markEntity(Integer.MAX_VALUE);
-                            }else{
+                            } else {
                                 MARKED_ENTITY = Integer.MAX_VALUE;
                             }
                             entityDispatcher.render(display, pos.getX(), pos.getY(), pos.getZ(), 0f, context.tickDelta(), context.matrixStack(), context.consumers(), LightTexture.FULL_BRIGHT);
-
                         }
                     }
                 });
