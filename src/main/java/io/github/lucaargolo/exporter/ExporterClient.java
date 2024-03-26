@@ -10,7 +10,6 @@ import de.javagl.jgltf.model.creation.GltfModelBuilder;
 import de.javagl.jgltf.model.impl.*;
 import de.javagl.jgltf.model.io.GltfModelWriter;
 import de.javagl.jgltf.model.v2.MaterialModelV2;
-import io.github.lucaargolo.exporter.entities.ReferenceBlockDisplay;
 import it.unimi.dsi.fastutil.ints.Int2IntArrayMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectArrayMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
@@ -29,7 +28,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
-import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.material.FluidState;
@@ -82,7 +80,6 @@ public class ExporterClient implements ClientModInitializer {
 
     /**TODO:
      *  - Since we are now using Minecraft's own face culling, we need to add a condition to render the border faces.
-     *  - Fix problem with fluid rendering, some stripes?
      *  - Fix rgba for transparency
      *  - Check RenderType before building material (for DoubleSide and Alpha mode etc)
      *  - Hopefully these will fix fluid exporting when using complete?
@@ -134,33 +131,24 @@ public class ExporterClient implements ClientModInitializer {
                         }
                         if(state.getRenderShape() != RenderShape.ENTITYBLOCK_ANIMATED) {
                             if(ExporterClient.COMPLETE) {
-                                var display = new ReferenceBlockDisplay(EntityType.BLOCK_DISPLAY, level);
-                                display.setBlockPos(pos.immutable());
-                                display.setBlockState(state);
-                                display.setId(Integer.MAX_VALUE);
-                                display.updateRenderSubState(true, context.tickDelta());
-                                display.renderState = display.createInterpolatedRenderState(display.createFreshRenderState(), context.tickDelta());
-                                if (COMPLETE) {
-                                    markEntity(Integer.MAX_VALUE);
-                                } else {
-                                    MARKED_ENTITY = Integer.MAX_VALUE;
-                                }
-                                entityDispatcher.render(display, pos.getX(), pos.getY(), pos.getZ(), 0f, context.tickDelta(), context.matrixStack(), context.consumers(), LightTexture.FULL_BRIGHT);
-                            }else{
-                                ExporterClient.MARKED_BUFFER = context.consumers();
-                                BoundingBox box = ExporterClient.MARKED_BOX;
-                                ExporterClient.INVERTED_POSE = context.matrixStack().last().pose().invert(new Matrix4f());
-                                ExporterClient.INVERTED_NORMAL = context.matrixStack().last().normal().invert(new Matrix3f());
-                                ExporterClient.VERTEX_POSITION = new Vector3f((float) (pos.getX() - box.getCenter().getX() - 0.5), (float) (pos.getY() - box.getCenter().getY() - 0.5), (float) (pos.getZ() - box.getCenter().getZ() - 0.5));
-                                if(MARKED_BUFFER != null) {
-                                    RenderType renderType = ItemBlockRenderTypes.getChunkRenderType(state);
-                                    VertexConsumer consumer = ExporterClient.MARKED_BUFFER.getBuffer(renderType);
-                                    blockDispatcher.renderBatched(state, pos, level, context.matrixStack(), consumer, true, RandomSource.create());
-                                }
-                                ExporterClient.INVERTED_POSE = null;
-                                ExporterClient.INVERTED_NORMAL = null;
-                                ExporterClient.MARKED_BUFFER = null;
-                                ExporterClient.MARKED_CONSUMERS.clear();
+                                markEntity(Integer.MAX_VALUE);
+                            }
+                            ExporterClient.MARKED_BUFFER = context.consumers();
+                            BoundingBox box = ExporterClient.MARKED_BOX;
+                            ExporterClient.INVERTED_POSE = context.matrixStack().last().pose().invert(new Matrix4f());
+                            ExporterClient.INVERTED_NORMAL = context.matrixStack().last().normal().invert(new Matrix3f());
+                            ExporterClient.VERTEX_POSITION = new Vector3f((float) (pos.getX() - box.getCenter().getX() - 0.5), (float) (pos.getY() - box.getCenter().getY() - 0.5), (float) (pos.getZ() - box.getCenter().getZ() - 0.5));
+                            if(MARKED_BUFFER != null) {
+                                RenderType renderType = ItemBlockRenderTypes.getChunkRenderType(state);
+                                VertexConsumer consumer = ExporterClient.MARKED_BUFFER.getBuffer(renderType);
+                                blockDispatcher.renderBatched(state, pos, level, context.matrixStack(), consumer, !COMPLETE, RandomSource.create());
+                            }
+                            ExporterClient.INVERTED_POSE = null;
+                            ExporterClient.INVERTED_NORMAL = null;
+                            ExporterClient.MARKED_BUFFER = null;
+                            ExporterClient.MARKED_CONSUMERS.clear();
+                            if(ExporterClient.COMPLETE) {
+                                ExporterClient.writeCapturedNode(new Vector3f(0, 0, 0));
                             }
                         }
                         FluidState fluidState = state.getFluidState();
@@ -170,7 +158,7 @@ public class ExporterClient implements ClientModInitializer {
                             }
                             ExporterClient.MARKED_BUFFER = context.consumers();
                             BoundingBox box = ExporterClient.MARKED_BOX;
-                            ExporterClient.VERTEX_POSITION = new Vector3f(-pos.getX()%16 + pos.getX() - box.getCenter().getX() - 0.5f - 16f, -pos.getY()%16 + pos.getY() - box.getCenter().getY() - 0.5f, -pos.getZ()%16 + pos.getZ() - box.getCenter().getZ() - 0.5f);
+                            ExporterClient.VERTEX_POSITION = new Vector3f(-(pos.getX() & 15) + pos.getX() - box.getCenter().getX() - 0.5f, -(pos.getY() & 15) + pos.getY() - box.getCenter().getY() - 0.5f, -(pos.getZ() & 15) + pos.getZ() - box.getCenter().getZ() - 0.5f);
                             if(MARKED_BUFFER != null) {
                                 RenderType renderType = ItemBlockRenderTypes.getRenderLayer(fluidState);
                                 VertexConsumer consumer = ExporterClient.MARKED_BUFFER.getBuffer(renderType);
