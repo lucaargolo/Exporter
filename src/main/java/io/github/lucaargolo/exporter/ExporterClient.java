@@ -79,7 +79,6 @@ public class ExporterClient implements ClientModInitializer {
     private static boolean NORMAL = false;
 
     /**TODO:
-     *  - Since we are now using Minecraft's own face culling, we need to add a condition to render the border faces.
      *  - Fix rgba for transparency
      *  - Check RenderType before building material (for DoubleSide and Alpha mode etc)
      *  - Hopefully these will fix fluid exporting when using complete?
@@ -96,6 +95,8 @@ public class ExporterClient implements ClientModInitializer {
                 var entityDispatcher = minecraft.getEntityRenderDispatcher();
                 var blockEntityDispatcher = minecraft.getBlockEntityRenderDispatcher();
 
+                var ao = minecraft.options.ambientOcclusion().get();
+                minecraft.options.ambientOcclusion().set(false);
                 var level = context.world();
                 markEntity(Integer.MAX_VALUE);
                 BlockPos.betweenClosed(MARKED_BOX.minX(), MARKED_BOX.minY(), MARKED_BOX.minZ(), MARKED_BOX.maxX(), MARKED_BOX.maxY(), MARKED_BOX.maxZ()).forEach(pos -> {
@@ -172,6 +173,7 @@ public class ExporterClient implements ClientModInitializer {
                         }
                     }
                 });
+                minecraft.options.ambientOcclusion().set(ao);
                 if(!COMPLETE)
                     ExporterClient.writeCapturedNode(new Vector3f(0, 0, 0));
                 AABB aabb = AABB.of(MARKED_BOX);
