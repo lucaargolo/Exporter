@@ -19,7 +19,7 @@ public class BufferBuilderMixin {
             int glId = ExporterClient.MARKED_CONSUMERS.getInt(this);
             ExporterClient.captureVertex(glId, x, y, z);
             ExporterClient.captureUv(glId, texU, texV);
-            ExporterClient.captureRgb(glId, red, green, blue);
+            ExporterClient.captureRgb(glId, red, green, blue, alpha);
             ExporterClient.captureNormal(glId, normalX, normalY, normalZ);
         }
     }

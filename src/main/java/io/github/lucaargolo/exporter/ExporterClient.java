@@ -68,7 +68,7 @@ public class ExporterClient implements ClientModInitializer {
     public static final Int2ObjectArrayMap<List<Vector3f>> CAPTURED_VERTICES = new Int2ObjectArrayMap<>();
     public static final Int2ObjectArrayMap<List<Vector3i>> CAPTURED_TRIANGLES = new Int2ObjectArrayMap<>();
     public static final Int2ObjectArrayMap<List<Vector2f>> CAPTURED_UVS = new Int2ObjectArrayMap<>();
-    public static final Int2ObjectArrayMap<List<Vector3f>> CAPTURED_COLORS = new Int2ObjectArrayMap<>();
+    public static final Int2ObjectArrayMap<List<Vector4f>> CAPTURED_COLORS = new Int2ObjectArrayMap<>();
     public static final Int2ObjectArrayMap<List<Vector3f>> CAPTURED_NORMALS = new Int2ObjectArrayMap<>();
 
     public static final List<NodeModel> NODES = new ArrayList<>();
@@ -79,10 +79,8 @@ public class ExporterClient implements ClientModInitializer {
     private static boolean NORMAL = false;
 
     /**TODO:
-     *  - Fix rgba for transparency
      *  - Check RenderType before building material (for DoubleSide and Alpha mode etc)
      *  - Hopefully these will fix fluid exporting when using complete?
-     *
      */
 
     @Override
@@ -234,10 +232,10 @@ public class ExporterClient implements ClientModInitializer {
         UV = true;
     }
 
-    public static void captureRgb(int glID, float r, float g, float b) {
+    public static void captureRgb(int glID, float r, float g, float b, float a) {
         CAPTURED_IMAGES.add(glID);
-        List<Vector3f> colors = CAPTURED_COLORS.computeIfAbsent(glID, i -> new ArrayList<>());
-        colors.add(new Vector3f(r, g, b));
+        List<Vector4f> colors = CAPTURED_COLORS.computeIfAbsent(glID, i -> new ArrayList<>());
+        colors.add(new Vector4f(r, g, b, a));
         COLOR = true;
     }
 
@@ -253,7 +251,7 @@ public class ExporterClient implements ClientModInitializer {
         if(!UV)
             captureUv(glID, 0f, 0f);
         if(!COLOR)
-            captureRgb(glID, 1f, 1f, 1f);
+            captureRgb(glID, 1f, 1f, 1f, 1f);
         if(!NORMAL)
             captureNormal(glID, 1f, 1f, 1f);
     }
@@ -312,12 +310,13 @@ public class ExporterClient implements ClientModInitializer {
                 uvs[i * 2] = uv.x;
                 uvs[i * 2 + 1] = uv.y;
             }
-            float[] colors = new float[CAPTURED_COLORS.get(glId).size() * 3];
+            float[] colors = new float[CAPTURED_COLORS.get(glId).size() * 4];
             for (int i = 0; i < CAPTURED_COLORS.get(glId).size(); i++) {
-                Vector3f color = CAPTURED_COLORS.get(glId).get(i);
-                colors[i * 3] = color.x;
-                colors[i * 3 + 1] = color.y;
-                colors[i * 3 + 2] = color.z;
+                Vector4f color = CAPTURED_COLORS.get(glId).get(i);
+                colors[i * 4] = color.x;
+                colors[i * 4 + 1] = color.y;
+                colors[i * 4 + 2] = color.z;
+                colors[i * 4 + 3] = color.w;
             }
             float[] normals = new float[CAPTURED_NORMALS.get(glId).size() * 3];
             for (int i = 0; i < CAPTURED_NORMALS.get(glId).size(); i++) {
@@ -403,7 +402,7 @@ public class ExporterClient implements ClientModInitializer {
         var texCoord = AccessorModels.createFloat2D(FloatBuffer.wrap(texCoords));
         primitive.putAttribute("TEXCOORD_0", texCoord);
 
-        var color = AccessorModels.createFloat3D(FloatBuffer.wrap(colors));
+        var color = AccessorModels.createFloat4D(FloatBuffer.wrap(colors));
         primitive.putAttribute("COLOR_0", color);
 
         var normal = AccessorModels.createFloat3D(FloatBuffer.wrap(normals));

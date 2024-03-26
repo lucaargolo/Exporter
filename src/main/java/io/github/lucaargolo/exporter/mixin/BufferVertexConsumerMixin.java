@@ -34,7 +34,7 @@ public interface BufferVertexConsumerMixin {
     default void captureVertex(int red, int green, int blue, int alpha, CallbackInfoReturnable<VertexConsumer> cir) {
         if(ExporterClient.MARKED_BUFFER != null && ExporterClient.MARKED_CONSUMERS.containsKey(this)) {
             int glId = ExporterClient.MARKED_CONSUMERS.getInt(this);
-            ExporterClient.captureRgb(glId, red/255f, green/255f, blue/255f);
+            ExporterClient.captureRgb(glId, red/255f, green/255f, blue/255f, alpha/255f);
         }
     }
 
