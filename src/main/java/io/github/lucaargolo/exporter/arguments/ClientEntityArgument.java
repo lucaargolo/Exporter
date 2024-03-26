@@ -1,4 +1,4 @@
-package io.github.lucaargolo.exporter.misc;
+package io.github.lucaargolo.exporter.arguments;
 
 import com.google.common.collect.Iterables;
 import com.google.gson.JsonObject;

@@ -2,8 +2,8 @@ package io.github.lucaargolo.exporter;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.BoolArgumentType;
-import io.github.lucaargolo.exporter.misc.ClientBlockPosArgument;
-import io.github.lucaargolo.exporter.misc.ClientEntityArgument;
+import io.github.lucaargolo.exporter.arguments.ClientBlockPosArgument;
+import io.github.lucaargolo.exporter.arguments.ClientEntityArgument;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.commands.CommandBuildContext;

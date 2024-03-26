@@ -1,4 +1,4 @@
-package io.github.lucaargolo.exporter.misc;
+package io.github.lucaargolo.exporter.arguments;
 
 import com.mojang.brigadier.StringReader;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;

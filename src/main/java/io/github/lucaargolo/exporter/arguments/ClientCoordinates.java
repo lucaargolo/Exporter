@@ -1,4 +1,4 @@
-package io.github.lucaargolo.exporter.misc;
+package io.github.lucaargolo.exporter.arguments;
 
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.core.BlockPos;
