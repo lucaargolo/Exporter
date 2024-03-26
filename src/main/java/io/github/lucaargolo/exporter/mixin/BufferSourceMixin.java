@@ -3,9 +3,11 @@ package io.github.lucaargolo.exporter.mixin;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import io.github.lucaargolo.exporter.ExporterClient;
+import io.github.lucaargolo.exporter.RenderInfo;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderStateShard;
 import net.minecraft.client.renderer.RenderType;
+import org.lwjgl.opengl.GL11;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -19,13 +21,26 @@ public class BufferSourceMixin {
     public void test(RenderType renderType, CallbackInfoReturnable<VertexConsumer> cir) {
         if(ExporterClient.MARKED_BUFFER == this) {
             if(renderType instanceof RenderType.CompositeRenderType composite) {
-                if(composite.state().textureState instanceof RenderStateShard.TextureStateShard textureShard) {
+                var cullShard = composite.state().cullState;
+                var emptyShard = composite.state().textureState;
+                if(emptyShard instanceof RenderStateShard.TextureStateShard textureShard) {
                     int oldId = RenderSystem.getShaderTexture(0);
                     textureShard.setupRenderState();
                     int glId = RenderSystem.getShaderTexture(0);
-                    ExporterClient.MARKED_CONSUMERS.put(cir.getReturnValue(), glId);
+                    boolean oldCull = GL11.glIsEnabled(GL11.GL_CULL_FACE);
+                    cullShard.setupRenderState();
+                    boolean cull = GL11.glIsEnabled(GL11.GL_CULL_FACE);
+                    if(oldCull) {
+                        RenderSystem.enableCull();
+                    }else{
+                        RenderSystem.disableCull();
+                    }
+                    String name = composite.toString();
+                    RenderInfo info = new RenderInfo(glId, RenderInfo.Type.fromName(name), cull);
+                    ExporterClient.MARKED_CONSUMERS.put(cir.getReturnValue(), info);
                     RenderSystem.setShaderTexture(0, oldId);
                 }
+                //TODO: Add support to MultiTextureShard
             }
         }
     }

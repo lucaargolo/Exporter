@@ -2,7 +2,6 @@ package io.github.lucaargolo.exporter.mixin;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import io.github.lucaargolo.exporter.ExporterClient;
-import io.github.lucaargolo.exporter.entities.ReferenceBlockDisplay;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.world.entity.Entity;
@@ -48,8 +47,6 @@ public class EntityRenderDispatcherMixin {
             }else if(ExporterClient.COMPLETE) {
                 BoundingBox box = ExporterClient.MARKED_BOX;
                 ExporterClient.writeCapturedNode(new Vector3f((float) (x - box.getCenter().getX() - 0.5), (float) (y - box.getCenter().getY() - 0.5), (float) (z - box.getCenter().getZ() - 0.5)));
-            }else if(!(entity instanceof ReferenceBlockDisplay)){
-                ExporterClient.writeCapturedNode(new Vector3f(0, 0, 0));
             }
         }
     }

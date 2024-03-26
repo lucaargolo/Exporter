@@ -10,12 +10,7 @@ import de.javagl.jgltf.model.creation.GltfModelBuilder;
 import de.javagl.jgltf.model.impl.*;
 import de.javagl.jgltf.model.io.GltfModelWriter;
 import de.javagl.jgltf.model.v2.MaterialModelV2;
-import it.unimi.dsi.fastutil.ints.Int2IntArrayMap;
-import it.unimi.dsi.fastutil.ints.Int2ObjectArrayMap;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
-import it.unimi.dsi.fastutil.ints.IntArraySet;
-import it.unimi.dsi.fastutil.objects.Object2IntArrayMap;
-import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
@@ -44,8 +39,7 @@ import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 public class ExporterClient implements ClientModInitializer {
 
@@ -60,27 +54,28 @@ public class ExporterClient implements ClientModInitializer {
     public static Vector3f VERTEX_POSITION = new Vector3f(0, 0, 0);
     public static BoundingBox MARKED_BOX;
     public static MultiBufferSource MARKED_BUFFER;
-    public static final Object2IntMap<VertexConsumer> MARKED_CONSUMERS = new Object2IntArrayMap<>();
-
-    public static final IntArraySet CAPTURED_IMAGES = new IntArraySet();
-    public static final Int2IntArrayMap VERTICE_COUNT = new Int2IntArrayMap();
-    public static final Int2ObjectArrayMap<IntArrayList> VERTICE_HOLDER = new Int2ObjectArrayMap<>();
-    public static final Int2ObjectArrayMap<List<Vector3f>> CAPTURED_VERTICES = new Int2ObjectArrayMap<>();
-    public static final Int2ObjectArrayMap<List<Vector3i>> CAPTURED_TRIANGLES = new Int2ObjectArrayMap<>();
-    public static final Int2ObjectArrayMap<List<Vector2f>> CAPTURED_UVS = new Int2ObjectArrayMap<>();
-    public static final Int2ObjectArrayMap<List<Vector4f>> CAPTURED_COLORS = new Int2ObjectArrayMap<>();
-    public static final Int2ObjectArrayMap<List<Vector3f>> CAPTURED_NORMALS = new Int2ObjectArrayMap<>();
-
+    public static final Map<VertexConsumer, RenderInfo> MARKED_CONSUMERS = new HashMap<>();
+    public static final Set<RenderInfo> CAPTURED_INFO = new HashSet<>();
+    public static final Map<RenderInfo, Integer> VERTICE_COUNT = new HashMap<>();
+    public static final Map<RenderInfo, IntArrayList> VERTICE_HOLDER = new HashMap<>();
+    public static final Map<RenderInfo, List<Vector3f>> CAPTURED_VERTICES = new HashMap<>();
+    public static final Map<RenderInfo, List<Vector3i>> CAPTURED_TRIANGLES = new HashMap<>();
+    public static final Map<RenderInfo, List<Vector2f>> CAPTURED_UVS = new HashMap<>();
+    public static final Map<RenderInfo, List<Vector4f>> CAPTURED_COLORS = new HashMap<>();
+    public static final Map<RenderInfo, List<Vector3f>> CAPTURED_NORMALS = new HashMap<>();
     public static final List<NodeModel> NODES = new ArrayList<>();
-    public static final Int2ObjectArrayMap<MaterialModel> MATERIALS = new Int2ObjectArrayMap<>();
+    public static final Map<RenderInfo, MaterialModel> MATERIALS = new HashMap<>();
 
     private static boolean UV = false;
     private static boolean COLOR = false;
     private static boolean NORMAL = false;
 
     /**TODO:
-     *  - Check RenderType before building material (for DoubleSide and Alpha mode etc)
-     *  - Hopefully these will fix fluid exporting when using complete?
+     *  - Lava exporting is glitchy for some reason?.
+     *  - Multiple render infos using the same glId should point to the same texture.
+     *  - Fix fluid exporting when using complete. (I think its a Godot Issue)
+     *  - Add user interface with options (Ambient Occlusion on/off, Entities on/off, File binary/embed/normal)
+     *  - Find a way to export blocks outside player view? (Not priority)
      */
 
     @Override
@@ -188,7 +183,7 @@ public class ExporterClient implements ClientModInitializer {
 
     public static void markEntity(int entityId) {
         MARKED_ENTITY = entityId;
-        CAPTURED_IMAGES.clear();
+        CAPTURED_INFO.clear();
         VERTICE_COUNT.clear();
         CAPTURED_VERTICES.clear();
         CAPTURED_TRIANGLES.clear();
@@ -197,18 +192,18 @@ public class ExporterClient implements ClientModInitializer {
         CAPTURED_NORMALS.clear();
     }
 
-    public static void captureVertex(int glID, float x, float y, float z) {
-        CAPTURED_IMAGES.add(glID);
-        List<Vector3f> vertices = CAPTURED_VERTICES.computeIfAbsent(glID, i -> new ArrayList<>());
-        List<Vector3i> triangles = CAPTURED_TRIANGLES.computeIfAbsent(glID, i -> new ArrayList<>());
+    public static void captureVertex(RenderInfo info, float x, float y, float z) {
+        CAPTURED_INFO.add(info);
+        List<Vector3f> vertices = CAPTURED_VERTICES.computeIfAbsent(info, i -> new ArrayList<>());
+        List<Vector3i> triangles = CAPTURED_TRIANGLES.computeIfAbsent(info, i -> new ArrayList<>());
 
         Vector4f reversedVertex = INVERTED_POSE != null ? INVERTED_POSE.transform(new Vector4f(x, y, z, 1f)) : new Vector4f(x, y, z, 1f);
         Vector3f capturedVertex = new Vector3f(reversedVertex.x, reversedVertex.y, reversedVertex.z).add(VERTEX_POSITION);
         int index = vertices.size();
         vertices.add(capturedVertex);
 
-        int verticeCount = VERTICE_COUNT.computeIfAbsent(glID, i -> 0);
-        IntArrayList verticeHolder = VERTICE_HOLDER.computeIfAbsent(glID, i -> new IntArrayList(new int[4]));
+        int verticeCount = VERTICE_COUNT.computeIfAbsent(info, i -> 0);
+        IntArrayList verticeHolder = VERTICE_HOLDER.computeIfAbsent(info, i -> new IntArrayList(new int[4]));
         verticeHolder.set(verticeCount % 4, index);
         if((verticeCount+1) % 4 == 0) {
             int v0 = verticeHolder.getInt(0);
@@ -218,42 +213,42 @@ public class ExporterClient implements ClientModInitializer {
             triangles.add(new Vector3i(v0, v1, v2));
             triangles.add(new Vector3i(v3, v0, v2));
         }
-        ExporterClient.VERTICE_COUNT.put(glID, verticeCount+1);
+        ExporterClient.VERTICE_COUNT.put(info, verticeCount+1);
 
         COLOR = false;
         UV = false;
         NORMAL = false;
     }
 
-    public static void captureUv(int glID, float u, float v) {
-        CAPTURED_IMAGES.add(glID);
-        List<Vector2f> uvs = CAPTURED_UVS.computeIfAbsent(glID, i -> new ArrayList<>());
+    public static void captureUv(RenderInfo info, float u, float v) {
+        CAPTURED_INFO.add(info);
+        List<Vector2f> uvs = CAPTURED_UVS.computeIfAbsent(info, i -> new ArrayList<>());
         uvs.add(new Vector2f(u, v));
         UV = true;
     }
 
-    public static void captureRgb(int glID, float r, float g, float b, float a) {
-        CAPTURED_IMAGES.add(glID);
-        List<Vector4f> colors = CAPTURED_COLORS.computeIfAbsent(glID, i -> new ArrayList<>());
+    public static void captureRgb(RenderInfo info, float r, float g, float b, float a) {
+        CAPTURED_INFO.add(info);
+        List<Vector4f> colors = CAPTURED_COLORS.computeIfAbsent(info, i -> new ArrayList<>());
         colors.add(new Vector4f(r, g, b, a));
         COLOR = true;
     }
 
-    public static void captureNormal(int glID, float x, float y, float z) {
-        CAPTURED_IMAGES.add(glID);
-        List<Vector3f> normals = CAPTURED_NORMALS.computeIfAbsent(glID, i -> new ArrayList<>());
+    public static void captureNormal(RenderInfo info, float x, float y, float z) {
+        CAPTURED_INFO.add(info);
+        List<Vector3f> normals = CAPTURED_NORMALS.computeIfAbsent(info, i -> new ArrayList<>());
         Vector3f reversedNormal = INVERTED_NORMAL != null ? INVERTED_NORMAL.transform(new Vector3f(x, y, z)) : new Vector3f(x, y, z);
         normals.add(reversedNormal);
         NORMAL = true;
     }
 
-    public static void endCapture(int glID) {
+    public static void endCapture(RenderInfo info) {
         if(!UV)
-            captureUv(glID, 0f, 0f);
+            captureUv(info, 0f, 0f);
         if(!COLOR)
-            captureRgb(glID, 1f, 1f, 1f, 1f);
+            captureRgb(info, 1f, 1f, 1f, 1f);
         if(!NORMAL)
-            captureNormal(glID, 0f, 1f, 0f);
+            captureNormal(info, 0f, 1f, 0f);
     }
 
     public static ByteBuffer extractTexture(int glId) {
@@ -296,45 +291,45 @@ public class ExporterClient implements ClientModInitializer {
     public static void writeCapturedNode(Vector3f translation) {
         var node = new DefaultNodeModel();
         node.setTranslation(new float[] {translation.x, translation.y, translation.z});
-        for (int glId : CAPTURED_IMAGES) {
-            float[] vertices = new float[CAPTURED_VERTICES.get(glId).size() * 3];
-            for (int i = 0; i < CAPTURED_VERTICES.get(glId).size(); i++) {
-                Vector3f vertex = CAPTURED_VERTICES.get(glId).get(i);
+        for (RenderInfo info: CAPTURED_INFO) {
+            float[] vertices = new float[CAPTURED_VERTICES.get(info).size() * 3];
+            for (int i = 0; i < CAPTURED_VERTICES.get(info).size(); i++) {
+                Vector3f vertex = CAPTURED_VERTICES.get(info).get(i);
                 vertices[i * 3] = vertex.x;
                 vertices[i * 3 + 1] = vertex.y;
                 vertices[i * 3 + 2] = vertex.z;
             }
-            float[] uvs = new float[CAPTURED_UVS.get(glId).size() * 2];
-            for (int i = 0; i < CAPTURED_UVS.get(glId).size(); i++) {
-                Vector2f uv = CAPTURED_UVS.get(glId).get(i);
+            float[] uvs = new float[CAPTURED_UVS.get(info).size() * 2];
+            for (int i = 0; i < CAPTURED_UVS.get(info).size(); i++) {
+                Vector2f uv = CAPTURED_UVS.get(info).get(i);
                 uvs[i * 2] = uv.x;
                 uvs[i * 2 + 1] = uv.y;
             }
-            float[] colors = new float[CAPTURED_COLORS.get(glId).size() * 4];
-            for (int i = 0; i < CAPTURED_COLORS.get(glId).size(); i++) {
-                Vector4f color = CAPTURED_COLORS.get(glId).get(i);
+            float[] colors = new float[CAPTURED_COLORS.get(info).size() * 4];
+            for (int i = 0; i < CAPTURED_COLORS.get(info).size(); i++) {
+                Vector4f color = CAPTURED_COLORS.get(info).get(i);
                 colors[i * 4] = color.x;
                 colors[i * 4 + 1] = color.y;
                 colors[i * 4 + 2] = color.z;
                 colors[i * 4 + 3] = color.w;
             }
-            float[] normals = new float[CAPTURED_NORMALS.get(glId).size() * 3];
-            for (int i = 0; i < CAPTURED_NORMALS.get(glId).size(); i++) {
-                Vector3f normal = CAPTURED_NORMALS.get(glId).get(i);
+            float[] normals = new float[CAPTURED_NORMALS.get(info).size() * 3];
+            for (int i = 0; i < CAPTURED_NORMALS.get(info).size(); i++) {
+                Vector3f normal = CAPTURED_NORMALS.get(info).get(i);
                 normals[i * 3] = normal.x;
                 normals[i * 3 + 1] = normal.y;
                 normals[i * 3 + 2] = normal.z;
             }
-            int[] triangles = new int[CAPTURED_TRIANGLES.get(glId).size() * 3];
-            for (int i = 0; i < CAPTURED_TRIANGLES.get(glId).size(); i++) {
-                Vector3i triangle = CAPTURED_TRIANGLES.get(glId).get(i);
+            int[] triangles = new int[CAPTURED_TRIANGLES.get(info).size() * 3];
+            for (int i = 0; i < CAPTURED_TRIANGLES.get(info).size(); i++) {
+                Vector3i triangle = CAPTURED_TRIANGLES.get(info).get(i);
                 triangles[i * 3] = triangle.x;
                 triangles[i * 3 + 1] = triangle.y;
                 triangles[i * 3 + 2] = triangle.z;
             }
             try {
                 var child = new DefaultNodeModel();
-                var material = MATERIALS.computeIfAbsent(glId, ExporterClient::getMaterial);
+                var material = MATERIALS.computeIfAbsent(info, ExporterClient::getMaterial);
                 MeshModel mesh = writeMesh(material, vertices, uvs, colors, normals, triangles);
                 child.addMeshModel(mesh);
                 node.addChild(child);
@@ -345,8 +340,8 @@ public class ExporterClient implements ClientModInitializer {
         NODES.add(node);
     }
 
-    public static MaterialModel getMaterial(int glId) {
-        ByteBuffer imageBuffer = extractTexture(glId);
+    public static MaterialModel getMaterial(RenderInfo info) {
+        ByteBuffer imageBuffer = extractTexture(info.glId());
 
         var image = new DefaultImageModel();
         image.setImageData(imageBuffer);
@@ -358,8 +353,13 @@ public class ExporterClient implements ClientModInitializer {
 
         var material = new MaterialModelV2();
         material.setBaseColorTexture(texture);
-        material.setAlphaMode(MaterialModelV2.AlphaMode.MASK);
-        material.setDoubleSided(false);
+        var alphaMode = switch (info.type()) {
+            case SOLID -> MaterialModelV2.AlphaMode.OPAQUE;
+            case CUTOUT -> MaterialModelV2.AlphaMode.MASK;
+            case TRANSLUCENT -> MaterialModelV2.AlphaMode.BLEND;
+        };
+        material.setAlphaMode(alphaMode);
+        material.setDoubleSided(info.backface());
 
         return material;
     }
@@ -375,12 +375,12 @@ public class ExporterClient implements ClientModInitializer {
         builder.addSceneModel(scene);
 
         var model = builder.build();
-        var file = new File(FabricLoader.getInstance().getGameDir() + File.separator + "models" + File.separator + "model" + ++MODEL_COUNT + ".gltf");
+        var file = new File(FabricLoader.getInstance().getGameDir() + File.separator + "models" + File.separator + "model" + ++MODEL_COUNT + ".glb");
         var writer = new GltfModelWriter();
         var minecraft = Minecraft.getInstance();
         var player = minecraft.player;
         try {
-            writer.writeEmbedded(model, file);
+            writer.writeBinary(model, file);
             if(player != null)
                 player.displayClientMessage(Component.literal("Successfully saved model at "+file+" with "+model.getMeshModels().size()+" meshes.").withStyle(ChatFormatting.GREEN), false);
         } catch (Exception e) {
