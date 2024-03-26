@@ -7,6 +7,7 @@ import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
+import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.spongepowered.asm.mixin.Mixin;
@@ -21,6 +22,7 @@ public class EntityRenderDispatcherMixin {
     public <E extends Entity> void test(E entity, double x, double y, double z, float rotationYaw, float partialTicks, PoseStack poseStack, MultiBufferSource buffer, int packedLight, CallbackInfo ci) {
         if(entity.getId() == ExporterClient.MARKED_ENTITY) {
             ExporterClient.INVERTED_POSE = poseStack.last().pose().invert(new Matrix4f());
+            ExporterClient.INVERTED_NORMAL = poseStack.last().normal().invert(new Matrix3f());
             ExporterClient.MARKED_BUFFER = buffer;
             if(!ExporterClient.COMPLETE && ExporterClient.MARKED_BOX != null) {
                 BoundingBox box = ExporterClient.MARKED_BOX;
@@ -36,6 +38,7 @@ public class EntityRenderDispatcherMixin {
         if(entity.getId() == ExporterClient.MARKED_ENTITY) {
             ExporterClient.MARKED_ENTITY = -1;
             ExporterClient.INVERTED_POSE = null;
+            ExporterClient.INVERTED_NORMAL = null;
             ExporterClient.MARKED_BUFFER = null;
             ExporterClient.MARKED_CONSUMERS.clear();
 

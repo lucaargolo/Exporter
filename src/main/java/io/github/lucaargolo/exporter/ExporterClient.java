@@ -57,6 +57,8 @@ public class ExporterClient implements ClientModInitializer {
 
     public static int MARKED_ENTITY = -1;
     public static Matrix4f INVERTED_POSE;
+    public static Matrix3f INVERTED_NORMAL;
+
     public static Vector3f VERTEX_POSITION = new Vector3f(0, 0, 0);
     public static BoundingBox MARKED_BOX;
     public static MultiBufferSource MARKED_BUFFER;
@@ -82,8 +84,9 @@ public class ExporterClient implements ClientModInitializer {
      *  - Since we are now using Minecraft's own face culling, we need to add a condition to render the border faces.
      *  - Fix problem with fluid rendering, some stripes?
      *  - Fix rgba for transparency
-     *  - Fix normals
      *  - Check RenderType before building material (for DoubleSide and Alpha mode etc)
+     *  - Hopefully these will fix fluid exporting when using complete?
+     *
      */
 
     @Override
@@ -110,6 +113,7 @@ public class ExporterClient implements ClientModInitializer {
                                     markEntity(Integer.MAX_VALUE);
                                 }
                                 ExporterClient.INVERTED_POSE = context.matrixStack().last().pose().invert(new Matrix4f());
+                                ExporterClient.INVERTED_NORMAL = context.matrixStack().last().normal().invert(new Matrix3f());
                                 ExporterClient.MARKED_BUFFER = context.consumers();
                                 if(!ExporterClient.COMPLETE && ExporterClient.MARKED_BOX != null) {
                                     BoundingBox box = ExporterClient.MARKED_BOX;
@@ -119,6 +123,7 @@ public class ExporterClient implements ClientModInitializer {
                                 }
                                 renderer.render(blockEntity, context.tickDelta(), context.matrixStack(), context.consumers(), i, OverlayTexture.NO_OVERLAY);
                                 ExporterClient.INVERTED_POSE = null;
+                                ExporterClient.INVERTED_NORMAL = null;
                                 ExporterClient.MARKED_BUFFER = null;
                                 ExporterClient.MARKED_CONSUMERS.clear();
                                 if(ExporterClient.COMPLETE) {
@@ -145,6 +150,7 @@ public class ExporterClient implements ClientModInitializer {
                                 ExporterClient.MARKED_BUFFER = context.consumers();
                                 BoundingBox box = ExporterClient.MARKED_BOX;
                                 ExporterClient.INVERTED_POSE = context.matrixStack().last().pose().invert(new Matrix4f());
+                                ExporterClient.INVERTED_NORMAL = context.matrixStack().last().normal().invert(new Matrix3f());
                                 ExporterClient.VERTEX_POSITION = new Vector3f((float) (pos.getX() - box.getCenter().getX() - 0.5), (float) (pos.getY() - box.getCenter().getY() - 0.5), (float) (pos.getZ() - box.getCenter().getZ() - 0.5));
                                 if(MARKED_BUFFER != null) {
                                     RenderType renderType = ItemBlockRenderTypes.getChunkRenderType(state);
@@ -152,6 +158,7 @@ public class ExporterClient implements ClientModInitializer {
                                     blockDispatcher.renderBatched(state, pos, level, context.matrixStack(), consumer, true, RandomSource.create());
                                 }
                                 ExporterClient.INVERTED_POSE = null;
+                                ExporterClient.INVERTED_NORMAL = null;
                                 ExporterClient.MARKED_BUFFER = null;
                                 ExporterClient.MARKED_CONSUMERS.clear();
                             }
@@ -247,7 +254,8 @@ public class ExporterClient implements ClientModInitializer {
     public static void captureNormal(int glID, float x, float y, float z) {
         CAPTURED_IMAGES.add(glID);
         List<Vector3f> normals = CAPTURED_NORMALS.computeIfAbsent(glID, i -> new ArrayList<>());
-        normals.add(new Vector3f(x, y, z));
+        Vector3f reversedNormal = INVERTED_NORMAL != null ? INVERTED_NORMAL.transform(new Vector3f(x, y, z)) : new Vector3f(x, y, z);
+        normals.add(reversedNormal);
         NORMAL = true;
     }
 
