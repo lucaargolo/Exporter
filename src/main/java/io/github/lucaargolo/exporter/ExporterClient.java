@@ -253,7 +253,7 @@ public class ExporterClient implements ClientModInitializer {
         if(!COLOR)
             captureRgb(glID, 1f, 1f, 1f, 1f);
         if(!NORMAL)
-            captureNormal(glID, 1f, 1f, 1f);
+            captureNormal(glID, 0f, 1f, 0f);
     }
 
     public static ByteBuffer extractTexture(int glId) {
