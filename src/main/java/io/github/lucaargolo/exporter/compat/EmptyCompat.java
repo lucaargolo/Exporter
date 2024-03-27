@@ -1,14 +1,14 @@
 package io.github.lucaargolo.exporter.compat;
 
-public class EmptyCompat implements Compat {
+public class EmptyCompat extends Compat {
 
     @Override
-    public void setupRenderState() {
+    public void setup() {
 
     }
 
     @Override
-    public void clearRenderState() {
+    public void clear() {
 
     }
 

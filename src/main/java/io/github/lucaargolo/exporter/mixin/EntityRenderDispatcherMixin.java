@@ -18,7 +18,7 @@ public class EntityRenderDispatcherMixin {
 
     @Inject(at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/entity/EntityRenderer;render(Lnet/minecraft/world/entity/Entity;FFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V", shift = At.Shift.BEFORE), method = "render")
     public <E extends Entity> void test(E entity, double x, double y, double z, float rotationYaw, float partialTicks, PoseStack poseStack, MultiBufferSource buffer, int packedLight, CallbackInfo ci) {
-        if(entity.getId() == ExporterClient.MARKED_ENTITY) {
+        if(ExporterClient.SETUP && entity.getId() == ExporterClient.MARKED_ENTITY) {
             ExporterClient.INVERTED_POSE = poseStack.last().pose().invert(new Matrix4f());
             ExporterClient.INVERTED_NORMAL = poseStack.last().normal().invert(new Matrix3f());
             ExporterClient.MARKED_BUFFER = buffer;
@@ -32,7 +32,7 @@ public class EntityRenderDispatcherMixin {
 
     @Inject(at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/entity/EntityRenderer;render(Lnet/minecraft/world/entity/Entity;FFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V", shift = At.Shift.AFTER), method = "render")
     public <E extends Entity> void end(E entity, double x, double y, double z, float rotationYaw, float partialTicks, PoseStack poseStack, MultiBufferSource buffer, int packedLight, CallbackInfo ci) {
-        if(entity.getId() == ExporterClient.MARKED_ENTITY) {
+        if(ExporterClient.SETUP && entity.getId() == ExporterClient.MARKED_ENTITY) {
             ExporterClient.MARKED_ENTITY = -1;
             ExporterClient.INVERTED_POSE = null;
             ExporterClient.INVERTED_NORMAL = null;

@@ -9,14 +9,12 @@
     "BufferSourceMixin",
     "BufferVertexConsumerMixin",
     "EntityRenderDispatcherMixin",
-    "LevelRendererMixin",
-    "LiquidBlockRendererMixin"
+    "LiquidBlockRendererMixin",
+    "create.ContraptionRenderDispatcherMixin",
+    "create.ContraptionRenderInfoMixin",
+    "flywheel.VirtualRenderWorldAccessor"
   ],
   "injectors": {
     "defaultRequire": 1
-  },
-  "mixins": [
-    "create.ContraptionRenderDispatcherMixin",
-    "flywheel.VirtualRenderWorldAccessor"
-  ]
+  }
 }
