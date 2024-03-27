@@ -24,6 +24,7 @@ public class ExporterCommand {
                         ExporterClient.MARKED_BOX = BoundingBox.fromCorners(pos1, pos2);
                         ExporterClient.NODES.clear();
                         ExporterClient.MATERIALS.clear();
+                        ExporterClient.TEXTURES.clear();
                         return 1;
                     })
                     .then(ClientCommandManager.argument("complete", BoolArgumentType.bool())
@@ -34,6 +35,7 @@ public class ExporterCommand {
                             ExporterClient.MARKED_BOX = BoundingBox.fromCorners(pos1, pos2);
                             ExporterClient.NODES.clear();
                             ExporterClient.MATERIALS.clear();
+                            ExporterClient.TEXTURES.clear();
                             return 1;
                         })
                     )
@@ -45,6 +47,7 @@ public class ExporterCommand {
                     ExporterClient.markEntity(entity.getId());
                     ExporterClient.NODES.clear();
                     ExporterClient.MATERIALS.clear();
+                    ExporterClient.TEXTURES.clear();
                     return 1;
                 })
             )

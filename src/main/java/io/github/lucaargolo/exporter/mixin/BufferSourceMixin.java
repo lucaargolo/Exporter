@@ -23,10 +23,12 @@ public class BufferSourceMixin {
             if(renderType instanceof RenderType.CompositeRenderType composite) {
                 var cullShard = composite.state().cullState;
                 var emptyShard = composite.state().textureState;
+                var transparencyShard = composite.state().transparencyState;
                 if(emptyShard instanceof RenderStateShard.TextureStateShard textureShard) {
                     int oldId = RenderSystem.getShaderTexture(0);
                     textureShard.setupRenderState();
                     int glId = RenderSystem.getShaderTexture(0);
+
                     boolean oldCull = GL11.glIsEnabled(GL11.GL_CULL_FACE);
                     cullShard.setupRenderState();
                     boolean cull = GL11.glIsEnabled(GL11.GL_CULL_FACE);
@@ -35,8 +37,18 @@ public class BufferSourceMixin {
                     }else{
                         RenderSystem.disableCull();
                     }
+
+                    boolean oldBlend = GL11.glIsEnabled(GL11.GL_BLEND);
+                    transparencyShard.setupRenderState();
+                    boolean blend = GL11.glIsEnabled(GL11.GL_BLEND);
+                    if(oldBlend) {
+                        RenderSystem.enableBlend();
+                    }else{
+                        RenderSystem.disableBlend();
+                    }
+
                     String name = composite.toString();
-                    RenderInfo info = new RenderInfo(glId, RenderInfo.Type.fromName(name), cull);
+                    RenderInfo info = new RenderInfo(glId, RenderInfo.Type.fromName(name), cull, blend);
                     ExporterClient.MARKED_CONSUMERS.put(cir.getReturnValue(), info);
                     RenderSystem.setShaderTexture(0, oldId);
                 }

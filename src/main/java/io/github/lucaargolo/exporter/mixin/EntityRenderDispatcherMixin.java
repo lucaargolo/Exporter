@@ -5,7 +5,6 @@ import io.github.lucaargolo.exporter.ExporterClient;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
@@ -24,8 +23,7 @@ public class EntityRenderDispatcherMixin {
             ExporterClient.INVERTED_NORMAL = poseStack.last().normal().invert(new Matrix3f());
             ExporterClient.MARKED_BUFFER = buffer;
             if(!ExporterClient.COMPLETE && ExporterClient.MARKED_BOX != null) {
-                BoundingBox box = ExporterClient.MARKED_BOX;
-                ExporterClient.VERTEX_POSITION = new Vector3f((float) (x - box.getCenter().getX() - 0.5), (float) (y - box.getCenter().getY() - 0.5), (float) (z - box.getCenter().getZ() - 0.5));
+                ExporterClient.VERTEX_POSITION = new Vector3f((float) x + 0.5f, (float) y + 0.5f, (float) z + 0.5f).sub(ExporterClient.getCenter(ExporterClient.MARKED_BOX));
             }else{
                 ExporterClient.VERTEX_POSITION = new Vector3f(0, 0, 0);
             }
@@ -45,8 +43,9 @@ public class EntityRenderDispatcherMixin {
                 ExporterClient.writeCapturedNode(new Vector3f(0, 0, 0));
                 ExporterClient.writeCapturedModel();
             }else if(ExporterClient.COMPLETE) {
-                BoundingBox box = ExporterClient.MARKED_BOX;
-                ExporterClient.writeCapturedNode(new Vector3f((float) (x - box.getCenter().getX() - 0.5), (float) (y - box.getCenter().getY() - 0.5), (float) (z - box.getCenter().getZ() - 0.5)));
+                ExporterClient.writeCapturedNode(new Vector3f((float) x + 0.5f, (float) y + 0.5f, (float) z + 0.5f).sub(ExporterClient.getCenter(ExporterClient.MARKED_BOX)));
+            }else {
+                ExporterClient.writeCapturedNode(new Vector3f(0, 0, 0));
             }
         }
     }

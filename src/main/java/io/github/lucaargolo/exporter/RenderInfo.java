@@ -1,6 +1,6 @@
 package io.github.lucaargolo.exporter;
 
-public record RenderInfo(int glId, Type type, boolean backface) {
+public record RenderInfo(int glId, Type type, boolean backface, boolean alpha) {
 
     public enum Type {
         SOLID,
