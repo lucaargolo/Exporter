@@ -38,6 +38,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.phys.AABB;
+import org.jetbrains.annotations.Nullable;
 import org.joml.*;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
@@ -110,8 +111,10 @@ public class ExporterClient implements ClientModInitializer {
 
     public static void setupRender(WorldRenderContext context) {
         if(SETUP) {
-            Compat.clearAll();
-            SETUP = false;
+            if(MARKED_BOX == null && MARKED_ENTITY == -1) {
+                Compat.clearAll();
+                SETUP = false;
+            }
         }else if(MARKED_BOX != null || MARKED_ENTITY != -1) {
             Compat.setupAll();
             SETUP = true;
@@ -147,12 +150,12 @@ public class ExporterClient implements ClientModInitializer {
         }
     }
 
-    public static void renderBlock(BlockEntityRenderDispatcher blockEntityDispatcher, BlockRenderDispatcher blockDispatcher, BlockAndTintGetter level, BlockPos pos, PoseStack poseStack, MultiBufferSource bufferSource, float tickDelta) {
+    public static void renderBlock(@Nullable BlockEntityRenderDispatcher blockEntityDispatcher, BlockRenderDispatcher blockDispatcher, BlockAndTintGetter level, BlockPos pos, PoseStack poseStack, MultiBufferSource bufferSource, float tickDelta) {
         var state = level.getBlockState(pos);
         if (!state.isAir()) {
             int packedLight = LevelRenderer.getLightColor(level, pos);
             var blockEntity = level.getBlockEntity(pos);
-            if (blockEntity != null) {
+            if (blockEntity != null && blockEntityDispatcher != null) {
                 renderBlockEntity(blockEntityDispatcher, blockEntity, pos, poseStack, bufferSource, tickDelta, packedLight);
             }
             if (state.getRenderShape() != RenderShape.ENTITYBLOCK_ANIMATED) {
@@ -165,10 +168,10 @@ public class ExporterClient implements ClientModInitializer {
         }
     }
 
-    private static void renderBlockEntity(BlockEntityRenderDispatcher blockEntityDispatcher, BlockEntity blockEntity, BlockPos pos, PoseStack poseStack, MultiBufferSource bufferSource, float tickDelta, int packedLight) {
+    public static void renderBlockEntity(BlockEntityRenderDispatcher blockEntityDispatcher, BlockEntity blockEntity, BlockPos pos, PoseStack poseStack, MultiBufferSource bufferSource, float tickDelta, int packedLight) {
         var renderer = blockEntityDispatcher.getRenderer(blockEntity);
         if (renderer != null) {
-            if (ExporterClient.COMPLETE) {
+            if (COMPLETE) {
                 markEntity(Integer.MAX_VALUE);
             }
             INVERTED_POSE = poseStack.last().pose().invert(new Matrix4f());
