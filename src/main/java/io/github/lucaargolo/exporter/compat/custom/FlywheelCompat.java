@@ -1,4 +1,4 @@
-package io.github.lucaargolo.exporter.compat.create;
+package io.github.lucaargolo.exporter.compat.custom;
 
 import com.jozufozu.flywheel.backend.Backend;
 import com.jozufozu.flywheel.config.BackendType;

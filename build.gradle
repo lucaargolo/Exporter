@@ -57,7 +57,9 @@ dependencies {
     // Fabric API. This is technically optional, but you probably want it anyway.
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
     modCompileOnly "com.simibubi.create:create-fabric-${project.minecraft_version}:${project.create_version}"
-    modCompileOnly "maven.modrinth:sodium:mc${project.minecraft_version}-${project.sodium_version}"
+    modCompileOnly "maven.modrinth:sodium:${project.sodium_version}"
+    modCompileOnly "maven.modrinth:indium:${project.indium_version}"
+    modCompileOnly "maven.modrinth:iris:${project.iris_version}"
 
     implementation("de.javagl:jgltf-model-builder:2.0.3") {
         exclude(group: 'com.fasterxml.jackson.core')

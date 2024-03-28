@@ -1,5 +1,6 @@
 package io.github.lucaargolo.exporter;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.logging.LogUtils;
@@ -25,7 +26,9 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.*;
 import net.minecraft.client.renderer.block.BlockRenderDispatcher;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderDispatcher;
+import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.client.renderer.texture.TextureManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
@@ -107,6 +110,51 @@ public class ExporterClient implements ClientModInitializer {
         ClientCommandRegistrationCallback.EVENT.register(ExporterCommand::register);
         WorldRenderEvents.BEFORE_ENTITIES.register(ExporterClient::renderMarkedBox);
         WorldRenderEvents.END.register(ExporterClient::setupRender);
+    }
+
+    public static void captureBuffer(RenderType renderType, VertexConsumer buffer) {
+        if(renderType instanceof RenderType.CompositeRenderType composite) {
+            var cullShard = composite.state().cullState;
+            var emptyShard = composite.state().textureState;
+            var transparencyShard = composite.state().transparencyState;
+
+            int glId = -1;
+            int normalGlId = -1;
+            int specularGlId = -1;
+            if(emptyShard instanceof RenderStateShard.TextureStateShard textureShard && textureShard.texture.isPresent()) {
+                Minecraft minecraft = Minecraft.getInstance();
+                TextureManager manager = minecraft.getTextureManager();
+                AbstractTexture texture = manager.getTexture(textureShard.texture.get());
+                glId = texture.getId();
+                normalGlId = Compat.collectNormalTexture(glId);
+                specularGlId = Compat.collectSpecularTexture(glId);
+            }
+
+            boolean oldCull = GL11.glIsEnabled(GL11.GL_CULL_FACE);
+            cullShard.setupRenderState();
+            boolean cull = GL11.glIsEnabled(GL11.GL_CULL_FACE);
+            if(oldCull) {
+                RenderSystem.enableCull();
+            }else{
+                RenderSystem.disableCull();
+            }
+
+            boolean oldBlend = GL11.glIsEnabled(GL11.GL_BLEND);
+            transparencyShard.setupRenderState();
+            boolean blend = GL11.glIsEnabled(GL11.GL_BLEND);
+            if(oldBlend) {
+                RenderSystem.enableBlend();
+            }else{
+                RenderSystem.disableBlend();
+            }
+
+            String name = composite.toString();
+            RenderInfo info = new RenderInfo(glId, normalGlId, specularGlId, RenderInfo.Type.fromName(name), cull, blend);
+            buffer = Compat.collectAllBuffers(buffer);
+            ExporterClient.MARKED_CONSUMERS.put(buffer, info);
+
+            //TODO: Add support to MultiTextureShard
+        }
     }
 
     public static void setupRender(WorldRenderContext context) {
@@ -399,6 +447,7 @@ public class ExporterClient implements ClientModInitializer {
     }
 
     public static TextureModel getTexture(int glId) {
+        //TODO: Handle LabPBR 1.3
         ByteBuffer imageBuffer = extractTexture(glId);
 
         var image = new DefaultImageModel();
@@ -413,10 +462,16 @@ public class ExporterClient implements ClientModInitializer {
     }
 
     public static MaterialModel getMaterial(RenderInfo info) {
-        var texture = TEXTURES.computeIfAbsent(info.glId(), ExporterClient::getTexture);
+        //TODO: Handle LabPBR 1.3
 
         var material = new MaterialModelV2();
-        material.setBaseColorTexture(texture);
+        if(info.glId() >= 0)
+            material.setBaseColorTexture(TEXTURES.computeIfAbsent(info.glId(), ExporterClient::getTexture));
+        if(info.normalGlId() >= 0)
+            material.setNormalTexture(TEXTURES.computeIfAbsent(info.normalGlId(), ExporterClient::getTexture));
+        if(info.specularGlId() >= 0)
+            material.setMetallicRoughnessTexture(TEXTURES.computeIfAbsent(info.specularGlId(), ExporterClient::getTexture));
+
         var alphaMode = switch (info.type()) {
             case SOLID -> MaterialModelV2.AlphaMode.OPAQUE;
             case CUTOUT -> MaterialModelV2.AlphaMode.MASK;

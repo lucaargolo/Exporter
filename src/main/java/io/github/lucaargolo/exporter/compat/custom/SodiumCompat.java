@@ -1,4 +1,4 @@
-package io.github.lucaargolo.exporter.compat.sodium;
+package io.github.lucaargolo.exporter.compat.custom;
 
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import io.github.lucaargolo.exporter.compat.Compat;

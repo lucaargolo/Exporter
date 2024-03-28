@@ -9,10 +9,12 @@
     "BufferSourceMixin",
     "BufferVertexConsumerMixin",
     "EntityRenderDispatcherMixin",
+    "GltfModelBuilderMixin",
     "LiquidBlockRendererMixin",
     "create.ContraptionRenderDispatcherMixin",
     "create.ContraptionRenderInfoMixin",
     "flywheel.VirtualRenderWorldAccessor",
+    "iris.BufferSourceMixin",
     "sodium.SodiumBufferBuilderMixin"
   ],
   "injectors": {

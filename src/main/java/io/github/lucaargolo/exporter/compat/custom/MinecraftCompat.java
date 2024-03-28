@@ -1,9 +1,9 @@
-package io.github.lucaargolo.exporter.compat.minecraft;
+package io.github.lucaargolo.exporter.compat.custom;
 
 import io.github.lucaargolo.exporter.compat.Compat;
 import net.minecraft.client.Minecraft;
 
-public class AmbientOcclusionCompat extends Compat.Impl {
+public class MinecraftCompat extends Compat.Impl {
 
     private boolean lastAo;
 
