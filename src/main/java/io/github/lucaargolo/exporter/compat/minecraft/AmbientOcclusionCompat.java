@@ -3,7 +3,7 @@ package io.github.lucaargolo.exporter.compat.minecraft;
 import io.github.lucaargolo.exporter.compat.Compat;
 import net.minecraft.client.Minecraft;
 
-public class AmbientOcclusionCompat extends Compat {
+public class AmbientOcclusionCompat extends Compat.Impl {
 
     private boolean lastAo;
 

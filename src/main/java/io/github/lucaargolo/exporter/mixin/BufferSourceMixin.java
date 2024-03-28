@@ -4,6 +4,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import io.github.lucaargolo.exporter.ExporterClient;
 import io.github.lucaargolo.exporter.RenderInfo;
+import io.github.lucaargolo.exporter.compat.Compat;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderStateShard;
 import net.minecraft.client.renderer.RenderType;
@@ -13,7 +14,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-@Mixin(MultiBufferSource.BufferSource.class)
+@Mixin(value = MultiBufferSource.BufferSource.class, priority = 500)
 public class BufferSourceMixin {
 
     @SuppressWarnings("EqualsBetweenInconvertibleTypes")
@@ -28,6 +29,7 @@ public class BufferSourceMixin {
                     int oldId = RenderSystem.getShaderTexture(0);
                     textureShard.setupRenderState();
                     int glId = RenderSystem.getShaderTexture(0);
+                    RenderSystem.setShaderTexture(0, oldId);
 
                     boolean oldCull = GL11.glIsEnabled(GL11.GL_CULL_FACE);
                     cullShard.setupRenderState();
@@ -49,8 +51,8 @@ public class BufferSourceMixin {
 
                     String name = composite.toString();
                     RenderInfo info = new RenderInfo(glId, RenderInfo.Type.fromName(name), cull, blend);
-                    ExporterClient.MARKED_CONSUMERS.put(cir.getReturnValue(), info);
-                    RenderSystem.setShaderTexture(0, oldId);
+                    VertexConsumer buffer = Compat.collectAllBuffers(cir.getReturnValue());
+                    ExporterClient.MARKED_CONSUMERS.put(buffer, info);
                 }
                 //TODO: Add support to MultiTextureShard
             }

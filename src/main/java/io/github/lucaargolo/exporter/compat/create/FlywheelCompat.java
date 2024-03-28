@@ -5,7 +5,7 @@ import com.jozufozu.flywheel.config.BackendType;
 import com.jozufozu.flywheel.config.FlwConfig;
 import io.github.lucaargolo.exporter.compat.Compat;
 
-public class FlywheelCompat extends Compat {
+public class FlywheelCompat extends Compat.Impl {
 
     private BackendType lastBackend;
 

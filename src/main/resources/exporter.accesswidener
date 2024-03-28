@@ -27,3 +27,9 @@ accessible field net/minecraft/commands/arguments/selector/EntitySelector curren
 accessible field net/minecraft/commands/arguments/selector/EntitySelector playerName Ljava/lang/String;
 accessible field net/minecraft/commands/arguments/selector/EntitySelector entityUUID Ljava/util/UUID;
 accessible field net/minecraft/commands/arguments/selector/EntitySelector type Lnet/minecraft/world/level/entity/EntityTypeTest;
+accessible field net/minecraft/client/renderer/SpriteCoordinateExpander delegate Lcom/mojang/blaze3d/vertex/VertexConsumer;
+accessible field net/minecraft/client/renderer/SpriteCoordinateExpander sprite Lnet/minecraft/client/renderer/texture/TextureAtlasSprite;
+accessible field com/mojang/blaze3d/vertex/SheetedDecalTextureGenerator delegate Lcom/mojang/blaze3d/vertex/VertexConsumer;
+accessible field com/mojang/blaze3d/vertex/VertexMultiConsumer$Double first Lcom/mojang/blaze3d/vertex/VertexConsumer;
+accessible field com/mojang/blaze3d/vertex/VertexMultiConsumer$Double second Lcom/mojang/blaze3d/vertex/VertexConsumer;
+accessible field com/mojang/blaze3d/vertex/VertexMultiConsumer$Multiple delegates [Lcom/mojang/blaze3d/vertex/VertexConsumer;

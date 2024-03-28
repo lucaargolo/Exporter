@@ -12,7 +12,8 @@
     "LiquidBlockRendererMixin",
     "create.ContraptionRenderDispatcherMixin",
     "create.ContraptionRenderInfoMixin",
-    "flywheel.VirtualRenderWorldAccessor"
+    "flywheel.VirtualRenderWorldAccessor",
+    "sodium.SodiumBufferBuilderMixin"
   ],
   "injectors": {
     "defaultRequire": 1
