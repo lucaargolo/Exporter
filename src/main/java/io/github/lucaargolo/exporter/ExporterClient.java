@@ -439,7 +439,8 @@ public class ExporterClient implements ClientModInitializer {
 
                 double metallic;
                 if (g >= 230 && g <= 254) {
-                    int metalIndex = g - 230;
+                    //TODO: Improve this
+                    int metalIndex = Mth.clamp(g - 230, 0, METALS_TABLE.length-1);
                     double[] metalValues = METALS_TABLE[metalIndex];
                     metallic = (metalValues[0] + metalValues[1] + metalValues[2]) / 3.0;
                 } else {
