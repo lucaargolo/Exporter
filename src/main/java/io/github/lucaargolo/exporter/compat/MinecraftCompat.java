@@ -1,6 +1,5 @@
-package io.github.lucaargolo.exporter.compat.custom;
+package io.github.lucaargolo.exporter.compat;
 
-import io.github.lucaargolo.exporter.compat.Compat;
 import net.minecraft.client.Minecraft;
 
 public class MinecraftCompat extends Compat.Impl {
@@ -18,6 +17,11 @@ public class MinecraftCompat extends Compat.Impl {
     public void clear() {
         var minecraft = Minecraft.getInstance();
         minecraft.options.ambientOcclusion().set(lastAo);
+    }
+
+    @Override
+    public boolean isPresent() {
+        return true;
     }
 
 }

@@ -51,6 +51,7 @@ import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.lang.Math;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
@@ -83,10 +84,12 @@ public class ExporterClient implements ClientModInitializer {
     public static final Map<RenderInfo, Integer> VERTICE_COUNT = new HashMap<>();
     public static final Map<RenderInfo, IntArrayList> VERTICE_HOLDER = new HashMap<>();
     public static final Map<RenderInfo, List<Vector3f>> CAPTURED_VERTICES = new HashMap<>();
-    public static final Map<RenderInfo, List<Vector3i>> CAPTURED_TRIANGLES = new HashMap<>();
+    public static final Map<RenderInfo, List<Vector3f>> CAPTURED_NORMALS = new HashMap<>();
+    public static final Map<RenderInfo, List<Vector4f>> CAPTURED_TANGENTS = new HashMap<>();
     public static final Map<RenderInfo, List<Vector2f>> CAPTURED_UVS = new HashMap<>();
     public static final Map<RenderInfo, List<Vector4f>> CAPTURED_COLORS = new HashMap<>();
-    public static final Map<RenderInfo, List<Vector3f>> CAPTURED_NORMALS = new HashMap<>();
+    public static final Map<RenderInfo, List<Vector3i>> CAPTURED_TRIANGLES = new HashMap<>();
+
 
     public static final List<NodeModel> NODES = new ArrayList<>();
     public static final Map<RenderInfo, MaterialModel> MATERIALS = new HashMap<>();
@@ -95,6 +98,17 @@ public class ExporterClient implements ClientModInitializer {
     private static boolean UV = false;
     private static boolean COLOR = false;
     private static boolean NORMAL = false;
+
+    private static final double[][] METALS_TABLE = {
+            {2.9114, 2.9497, 2.5845, 3.0893, 2.9318, 2.7670}, // Iron
+            {0.18299, 0.42108, 1.3734, 3.4242, 2.3459, 1.7704}, // Gold
+            {1.3456, 0.96521, 0.61722, 7.4746, 6.3995, 5.3031}, // Aluminum
+            {3.1071, 3.1812, 2.3230, 3.3314, 3.3291, 3.1350}, // Chrome
+            {0.27105, 0.67693, 1.3164, 3.6092, 2.6248, 2.2921}, // Copper
+            {1.9100, 1.8300, 1.4400, 3.5100, 3.4000, 3.1800}, // Lead
+            {2.3757, 2.0847, 1.8453, 4.2655, 3.7153, 3.1365}, // Platinum
+            {0.15943, 0.14512, 0.13547, 3.9291, 3.1900, 2.3808} // Silver
+    };
 
     /**TODO:
      *  - Lava exporting is glitchy for some reason?.
@@ -113,6 +127,7 @@ public class ExporterClient implements ClientModInitializer {
     }
 
     public static void captureBuffer(RenderType renderType, VertexConsumer buffer) {
+        renderType = Compat.IRIS.unwrapRenderType(renderType);
         if(renderType instanceof RenderType.CompositeRenderType composite) {
             var cullShard = composite.state().cullState;
             var emptyShard = composite.state().textureState;
@@ -126,8 +141,8 @@ public class ExporterClient implements ClientModInitializer {
                 TextureManager manager = minecraft.getTextureManager();
                 AbstractTexture texture = manager.getTexture(textureShard.texture.get());
                 glId = texture.getId();
-                normalGlId = Compat.collectNormalTexture(glId);
-                specularGlId = Compat.collectSpecularTexture(glId);
+                normalGlId = Compat.IRIS.normalTexture(glId);
+                specularGlId = Compat.IRIS.specularTexture(glId);
             }
 
             boolean oldCull = GL11.glIsEnabled(GL11.GL_CULL_FACE);
@@ -149,8 +164,8 @@ public class ExporterClient implements ClientModInitializer {
             }
 
             String name = composite.toString();
-            RenderInfo info = new RenderInfo(glId, normalGlId, specularGlId, RenderInfo.Type.fromName(name), cull, blend);
-            buffer = Compat.collectAllBuffers(buffer);
+            RenderInfo info = new RenderInfo(glId, normalGlId, specularGlId, renderType.mode(), RenderInfo.Type.fromName(name), cull, blend);
+            buffer = Compat.SODIUM.collectBuffer(buffer);
             ExporterClient.MARKED_CONSUMERS.put(buffer, info);
 
             //TODO: Add support to MultiTextureShard
@@ -290,13 +305,17 @@ public class ExporterClient implements ClientModInitializer {
         CAPTURED_INFO.clear();
         VERTICE_COUNT.clear();
         CAPTURED_VERTICES.clear();
-        CAPTURED_TRIANGLES.clear();
+        CAPTURED_NORMALS.clear();
+        CAPTURED_TANGENTS.clear();
         CAPTURED_UVS.clear();
         CAPTURED_COLORS.clear();
-        CAPTURED_NORMALS.clear();
+        CAPTURED_TRIANGLES.clear();
     }
 
     public static void captureVertex(RenderInfo info, float x, float y, float z) {
+        if(info.mode().primitiveLength < 3)
+            return;
+
         CAPTURED_INFO.add(info);
         List<Vector3f> vertices = CAPTURED_VERTICES.computeIfAbsent(info, i -> new ArrayList<>());
         List<Vector3i> triangles = CAPTURED_TRIANGLES.computeIfAbsent(info, i -> new ArrayList<>());
@@ -309,14 +328,24 @@ public class ExporterClient implements ClientModInitializer {
 
         int verticeCount = VERTICE_COUNT.computeIfAbsent(info, i -> 0);
         IntArrayList verticeHolder = VERTICE_HOLDER.computeIfAbsent(info, i -> new IntArrayList(new int[4]));
-        verticeHolder.set(verticeCount % 4, index);
-        if((verticeCount+1) % 4 == 0) {
-            int v0 = verticeHolder.getInt(0);
-            int v1 = verticeHolder.getInt(1);
-            int v2 = verticeHolder.getInt(2);
-            int v3 = verticeHolder.getInt(3);
-            triangles.add(new Vector3i(v0, v1, v2));
-            triangles.add(new Vector3i(v3, v0, v2));
+        if(info.mode().primitiveLength == 4) {
+            verticeHolder.set(verticeCount % 4, index);
+            if ((verticeCount + 1) % 4 == 0) {
+                int v0 = verticeHolder.getInt(0);
+                int v1 = verticeHolder.getInt(1);
+                int v2 = verticeHolder.getInt(2);
+                int v3 = verticeHolder.getInt(3);
+                triangles.add(new Vector3i(v0, v1, v2));
+                triangles.add(new Vector3i(v3, v0, v2));
+            }
+        }else{
+            verticeHolder.set(verticeCount % 3, index);
+            if ((verticeCount + 1) % 3 == 0) {
+                int v0 = verticeHolder.getInt(0);
+                int v1 = verticeHolder.getInt(1);
+                int v2 = verticeHolder.getInt(2);
+                triangles.add(new Vector3i(v0, v1, v2));
+            }
         }
         ExporterClient.VERTICE_COUNT.put(info, verticeCount+1);
 
@@ -325,21 +354,9 @@ public class ExporterClient implements ClientModInitializer {
         NORMAL = false;
     }
 
-    public static void captureUv(RenderInfo info, float u, float v) {
-        CAPTURED_INFO.add(info);
-        List<Vector2f> uvs = CAPTURED_UVS.computeIfAbsent(info, i -> new ArrayList<>());
-        uvs.add(new Vector2f(Mth.clamp(u, 0f, 1f), Mth.clamp(v, 0f, 1f)));
-        UV = true;
-    }
-
-    public static void captureRgb(RenderInfo info, float r, float g, float b, float a) {
-        CAPTURED_INFO.add(info);
-        List<Vector4f> colors = CAPTURED_COLORS.computeIfAbsent(info, i -> new ArrayList<>());
-        colors.add(new Vector4f(Mth.clamp(r, 0f, 1f), Mth.clamp(g, 0f, 1f), Mth.clamp(b, 0f, 1f), info.alpha() ? Mth.clamp(a, 0f, 1f) : 1f));
-        COLOR = true;
-    }
-
     public static void captureNormal(RenderInfo info, float x, float y, float z) {
+        if(info.mode().primitiveLength < 3)
+            return;
         CAPTURED_INFO.add(info);
         List<Vector3f> normals = CAPTURED_NORMALS.computeIfAbsent(info, i -> new ArrayList<>());
         Vector3f reversedNormal = INVERTED_NORMAL != null ? INVERTED_NORMAL.transform(new Vector3f(x, y, z)) : new Vector3f(x, y, z);
@@ -348,16 +365,45 @@ public class ExporterClient implements ClientModInitializer {
         NORMAL = true;
     }
 
+    public static void captureTangent(RenderInfo info, float x, float y, float z, float w) {
+        if(info.mode().primitiveLength < 3)
+            return;
+        CAPTURED_INFO.add(info);
+        List<Vector4f> tangents = CAPTURED_TANGENTS.computeIfAbsent(info, i -> new ArrayList<>());
+        tangents.add(new Vector4f(x, y, z, w));
+    }
+
+    public static void captureUv(RenderInfo info, float u, float v) {
+        if(info.mode().primitiveLength < 3)
+            return;
+        CAPTURED_INFO.add(info);
+        List<Vector2f> uvs = CAPTURED_UVS.computeIfAbsent(info, i -> new ArrayList<>());
+        uvs.add(new Vector2f(Mth.clamp(u, 0f, 1f), Mth.clamp(v, 0f, 1f)));
+        UV = true;
+    }
+
+    public static void captureRgb(RenderInfo info, float r, float g, float b, float a) {
+        if(info.mode().primitiveLength < 3)
+            return;
+        CAPTURED_INFO.add(info);
+        List<Vector4f> colors = CAPTURED_COLORS.computeIfAbsent(info, i -> new ArrayList<>());
+        colors.add(new Vector4f(Mth.clamp(r, 0f, 1f), Mth.clamp(g, 0f, 1f), Mth.clamp(b, 0f, 1f), info.alpha() ? Mth.clamp(a, 0f, 1f) : 1f));
+        COLOR = true;
+    }
+
     public static void endCapture(RenderInfo info) {
+        if(info.mode().primitiveLength < 3)
+            return;
+        if(!NORMAL)
+            captureNormal(info, 0f, 1f, 0f);
         if(!UV)
             captureUv(info, 0f, 0f);
         if(!COLOR)
             captureRgb(info, 1f, 1f, 1f, 1f);
-        if(!NORMAL)
-            captureNormal(info, 0f, 1f, 0f);
+
     }
 
-    public static ByteBuffer extractTexture(int glId) {
+    public static ByteBuffer extractTexture(int glId, PBRType type) {
         int[] textureId = new int[1];
         GL11.glGetIntegerv(GL11.GL_TEXTURE_BINDING_2D, textureId);
         GL11.glBindTexture(GL11.GL_TEXTURE_2D, glId);
@@ -367,10 +413,10 @@ public class ExporterClient implements ClientModInitializer {
         GL11.glGetTexImage(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buffer);
         GL11.glBindTexture(GL11.GL_TEXTURE_2D, textureId[0]);
 
-        return convertToPNG(buffer, width, height);
+        return convertToPNG(buffer, width, height, type);
     }
 
-    public static ByteBuffer convertToPNG(ByteBuffer rgbaData, int width, int height) {
+    public static ByteBuffer convertToPNG(ByteBuffer rgbaData, int width, int height, PBRType type) {
         BufferedImage img = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
         int[] pixels = new int[width * height];
         for (int i = 0; i < pixels.length; i++) {
@@ -378,6 +424,34 @@ public class ExporterClient implements ClientModInitializer {
             int g = rgbaData.get() & 0xFF;
             int b = rgbaData.get() & 0xFF;
             int a = rgbaData.get() & 0xFF;
+
+            if(type == PBRType.NORMAL) {
+                float x = r / 255.0f;
+                float y = 1f - (g / 255.0f);
+                float z = (float) Math.sqrt(1.0f - (x * x + y * y));
+
+                a = 255;
+                r = (int) (x * 255);
+                g = (int) (y * 255);
+                b = (int) (z * 255);
+            }else if(type == PBRType.SPECULAR) {
+                double roughness = Math.pow(1.0 - (r / 255.0), 2.0);
+
+                double metallic;
+                if (g >= 230 && g <= 254) {
+                    int metalIndex = g - 230;
+                    double[] metalValues = METALS_TABLE[metalIndex];
+                    metallic = (metalValues[0] + metalValues[1] + metalValues[2]) / 3.0;
+                } else {
+                    metallic = g / 255.0;
+                }
+
+                a = 255;
+                r = 255;
+                g = (int) (roughness * 255);
+                b = (int) (metallic * 255);
+            }
+
             pixels[i] = (a << 24) | (r << 16) | (g << 8) | b;
         }
         img.setRGB(0, 0, width, height, pixels, 0, width);
@@ -405,6 +479,23 @@ public class ExporterClient implements ClientModInitializer {
                 vertices[i * 3 + 1] = vertex.y;
                 vertices[i * 3 + 2] = vertex.z;
             }
+            float[] normals = new float[CAPTURED_NORMALS.get(info).size() * 3];
+            for (int i = 0; i < CAPTURED_NORMALS.get(info).size(); i++) {
+                Vector3f normal = CAPTURED_NORMALS.get(info).get(i);
+                normals[i * 3] = normal.x;
+                normals[i * 3 + 1] = normal.y;
+                normals[i * 3 + 2] = normal.z;
+            }
+            //Tangents can be empty if Iris is not present
+            int tangentSize = CAPTURED_TANGENTS.get(info) != null ? CAPTURED_TANGENTS.get(info).size() : 0;
+            float[] tangents = new float[tangentSize * 4];
+            for (int i = 0; i < tangentSize; i++) {
+                Vector4f tangent = CAPTURED_TANGENTS.get(info).get(i);
+                tangents[i * 4] = tangent.x;
+                tangents[i * 4 + 1] = tangent.y;
+                tangents[i * 4 + 2] = tangent.z;
+                tangents[i * 4 + 3] = tangent.w;
+            }
             float[] uvs = new float[CAPTURED_UVS.get(info).size() * 2];
             for (int i = 0; i < CAPTURED_UVS.get(info).size(); i++) {
                 Vector2f uv = CAPTURED_UVS.get(info).get(i);
@@ -419,13 +510,6 @@ public class ExporterClient implements ClientModInitializer {
                 colors[i * 4 + 2] = color.z;
                 colors[i * 4 + 3] = color.w;
             }
-            float[] normals = new float[CAPTURED_NORMALS.get(info).size() * 3];
-            for (int i = 0; i < CAPTURED_NORMALS.get(info).size(); i++) {
-                Vector3f normal = CAPTURED_NORMALS.get(info).get(i);
-                normals[i * 3] = normal.x;
-                normals[i * 3 + 1] = normal.y;
-                normals[i * 3 + 2] = normal.z;
-            }
             int[] triangles = new int[CAPTURED_TRIANGLES.get(info).size() * 3];
             for (int i = 0; i < CAPTURED_TRIANGLES.get(info).size(); i++) {
                 Vector3i triangle = CAPTURED_TRIANGLES.get(info).get(i);
@@ -436,7 +520,7 @@ public class ExporterClient implements ClientModInitializer {
             try {
                 var child = new DefaultNodeModel();
                 var material = MATERIALS.computeIfAbsent(info, ExporterClient::getMaterial);
-                MeshModel mesh = writeMesh(material, vertices, uvs, colors, normals, triangles);
+                MeshModel mesh = writeMesh(material, vertices, normals, tangents, uvs, colors, triangles);
                 child.addMeshModel(mesh);
                 node.addChild(child);
             } catch (Exception e) {
@@ -446,9 +530,8 @@ public class ExporterClient implements ClientModInitializer {
         NODES.add(node);
     }
 
-    public static TextureModel getTexture(int glId) {
-        //TODO: Handle LabPBR 1.3
-        ByteBuffer imageBuffer = extractTexture(glId);
+    public static TextureModel getTexture(int glId, PBRType type) {
+        ByteBuffer imageBuffer = extractTexture(glId, type);
 
         var image = new DefaultImageModel();
         image.setImageData(imageBuffer);
@@ -461,17 +544,26 @@ public class ExporterClient implements ClientModInitializer {
         return texture;
     }
 
-    public static MaterialModel getMaterial(RenderInfo info) {
-        //TODO: Handle LabPBR 1.3
+    public static TextureModel getBaseTexture(int glId) {
+        return getTexture(glId, PBRType.BASE);
+    }
 
+    public static TextureModel getNormalTexture(int glId) {
+        return getTexture(glId, PBRType.NORMAL);
+    }
+
+    public static TextureModel getSpecularTexture(int glId) {
+        return getTexture(glId, PBRType.SPECULAR);
+    }
+
+    public static MaterialModel getMaterial(RenderInfo info) {
         var material = new MaterialModelV2();
         if(info.glId() >= 0)
-            material.setBaseColorTexture(TEXTURES.computeIfAbsent(info.glId(), ExporterClient::getTexture));
+            material.setBaseColorTexture(TEXTURES.computeIfAbsent(info.glId(), ExporterClient::getBaseTexture));
         if(info.normalGlId() >= 0)
-            material.setNormalTexture(TEXTURES.computeIfAbsent(info.normalGlId(), ExporterClient::getTexture));
+            material.setNormalTexture(TEXTURES.computeIfAbsent(info.normalGlId(), ExporterClient::getNormalTexture));
         if(info.specularGlId() >= 0)
-            material.setMetallicRoughnessTexture(TEXTURES.computeIfAbsent(info.specularGlId(), ExporterClient::getTexture));
-
+            material.setMetallicRoughnessTexture(TEXTURES.computeIfAbsent(info.specularGlId(), ExporterClient::getSpecularTexture));
         var alphaMode = switch (info.type()) {
             case SOLID -> MaterialModelV2.AlphaMode.OPAQUE;
             case CUTOUT -> MaterialModelV2.AlphaMode.MASK;
@@ -509,7 +601,7 @@ public class ExporterClient implements ClientModInitializer {
         }
     }
 
-    public static MeshModel writeMesh(MaterialModel material, float[] vertices, float[] texCoords, float[] colors, float[] normals, int[] indices) {
+    public static MeshModel writeMesh(MaterialModel material, float[] vertices, float[] normals, float[] tangents, float[] texCoords, float[] colors, int[] indices) {
 
         var mesh = new DefaultMeshModel();
 
@@ -518,14 +610,21 @@ public class ExporterClient implements ClientModInitializer {
         var position = AccessorModels.createFloat3D(FloatBuffer.wrap(vertices));
         primitive.putAttribute("POSITION", position);
 
+        var normal = AccessorModels.createFloat3D(FloatBuffer.wrap(normals));
+        primitive.putAttribute("NORMAL", normal);
+
+        //Tangents can be empty if Iris is not present
+        if(tangents != null && tangents.length > 0) {
+            //var tangent = AccessorModels.createFloat3D(FloatBuffer.wrap(tangents));
+            //primitive.putAttribute("TANGENT", tangent);
+        }
+
         var texCoord = AccessorModels.createFloat2D(FloatBuffer.wrap(texCoords));
         primitive.putAttribute("TEXCOORD_0", texCoord);
 
         var color = AccessorModels.createFloat4D(FloatBuffer.wrap(colors));
         primitive.putAttribute("COLOR_0", color);
 
-        var normal = AccessorModels.createFloat3D(FloatBuffer.wrap(normals));
-        primitive.putAttribute("NORMAL", normal);
 
         var triangles = AccessorModels.createUnsignedIntScalar(IntBuffer.wrap(indices));
         primitive.setIndices(triangles);
@@ -547,6 +646,12 @@ public class ExporterClient implements ClientModInitializer {
 
     public static Vector3f getCenter(BlockPos pos) {
         return new Vector3f(pos.getX() + 0.5f, pos.getY() + 0.5f, pos.getZ() + 0.5f);
+    }
+
+    public enum PBRType {
+        BASE,
+        NORMAL,
+        SPECULAR;
     }
 
 }

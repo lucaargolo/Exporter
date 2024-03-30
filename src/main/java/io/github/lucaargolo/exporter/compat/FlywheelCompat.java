@@ -1,9 +1,8 @@
-package io.github.lucaargolo.exporter.compat.custom;
+package io.github.lucaargolo.exporter.compat;
 
 import com.jozufozu.flywheel.backend.Backend;
 import com.jozufozu.flywheel.config.BackendType;
 import com.jozufozu.flywheel.config.FlwConfig;
-import io.github.lucaargolo.exporter.compat.Compat;
 
 public class FlywheelCompat extends Compat.Impl {
 
@@ -22,6 +21,11 @@ public class FlywheelCompat extends Compat.Impl {
         FlwConfig config = FlwConfig.get();
         config.backend.set(lastBackend);
         Backend.reloadWorldRenderers();
+    }
+
+    @Override
+    public boolean isPresent() {
+        return true;
     }
 
 }

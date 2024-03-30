@@ -2,6 +2,7 @@ package io.github.lucaargolo.exporter.mixin;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import io.github.lucaargolo.exporter.ExporterClient;
+import io.github.lucaargolo.exporter.compat.iris.IrisCompat;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.world.entity.Entity;
@@ -13,6 +14,8 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import java.lang.reflect.Field;
+
 @Mixin(EntityRenderDispatcher.class)
 public class EntityRenderDispatcherMixin {
 
@@ -21,7 +24,25 @@ public class EntityRenderDispatcherMixin {
         if(ExporterClient.SETUP && entity.getId() == ExporterClient.MARKED_ENTITY) {
             ExporterClient.INVERTED_POSE = poseStack.last().pose().invert(new Matrix4f());
             ExporterClient.INVERTED_NORMAL = poseStack.last().normal().invert(new Matrix3f());
-            ExporterClient.MARKED_BUFFER = buffer;
+
+            //Iris creates a lambda buffer source inside a mixin, so we have to do this.
+            if(IrisCompat.IRIS.isPresent()) {
+                Class<?> thisClass = this.getClass();
+                Class<?> bufferClass = buffer.getClass();
+                if (bufferClass.getName().contains(thisClass.getName() + "$$Lambda")) {
+                    try {
+                        Field backingField = bufferClass.getDeclaredField("arg$1");
+                        ExporterClient.MARKED_BUFFER = (MultiBufferSource) backingField.get(buffer);
+                    } catch (NoSuchFieldException | IllegalAccessException ignored) {
+                        ExporterClient.MARKED_BUFFER = buffer;
+                    }
+                } else {
+                    ExporterClient.MARKED_BUFFER = buffer;
+                }
+            }else{
+                ExporterClient.MARKED_BUFFER = buffer;
+            }
+
             if(!ExporterClient.COMPLETE && ExporterClient.MARKED_BOX != null) {
                 ExporterClient.VERTEX_POSITION = new Vector3f((float) x + 0.5f, (float) y + 0.5f, (float) z + 0.5f).sub(ExporterClient.getCenter(ExporterClient.MARKED_BOX));
             }else{

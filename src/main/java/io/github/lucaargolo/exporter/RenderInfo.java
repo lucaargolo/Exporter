@@ -1,6 +1,8 @@
 package io.github.lucaargolo.exporter;
 
-public record RenderInfo(int glId, int normalGlId, int specularGlId, Type type, boolean backface, boolean alpha) {
+import com.mojang.blaze3d.vertex.VertexFormat;
+
+public record RenderInfo(int glId, int normalGlId, int specularGlId, VertexFormat.Mode mode, Type type, boolean backface, boolean alpha) {
 
     public enum Type {
         SOLID,

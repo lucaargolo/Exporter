@@ -1,12 +1,11 @@
-package io.github.lucaargolo.exporter.compat.custom;
+package io.github.lucaargolo.exporter.compat.sodium;
 
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import io.github.lucaargolo.exporter.compat.Compat;
 import me.jellysquid.mods.sodium.client.SodiumClientMod;
 import me.jellysquid.mods.sodium.client.render.vertex.buffer.ExtendedBufferBuilder;
 import net.minecraft.client.Minecraft;
 
-public class SodiumCompat extends Compat.Impl {
+public class FullSodiumCompat extends SodiumCompat.Impl {
 
     private boolean lastEntityCulling;
 
@@ -33,6 +32,11 @@ public class SodiumCompat extends Compat.Impl {
         options.performance.useEntityCulling = lastEntityCulling;
         var minecraft = Minecraft.getInstance();
         minecraft.levelRenderer.needsUpdate();
+    }
+
+    @Override
+    public boolean isPresent() {
+        return true;
     }
 
 }
