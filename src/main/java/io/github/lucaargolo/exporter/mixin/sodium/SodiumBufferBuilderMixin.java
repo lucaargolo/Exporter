@@ -23,13 +23,13 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 
-@Mixin(value = SodiumBufferBuilder.class, remap = false, priority = 5000)
+@Mixin(value = SodiumBufferBuilder.class, remap = false)
 public class SodiumBufferBuilderMixin {
 
     @Shadow @Final private ExtendedBufferBuilder builder;
 
     @SuppressWarnings("SuspiciousMethodCalls")
-    @Inject(at = @At("HEAD"), method = "endVertex", locals = LocalCapture.CAPTURE_FAILSOFT)
+    @Inject(at = @At(value = "INVOKE", target = "Lme/jellysquid/mods/sodium/client/render/vertex/buffer/ExtendedBufferBuilder;sodium$moveToNextVertex()V", shift = At.Shift.BEFORE), method = "endVertex", locals = LocalCapture.CAPTURE_FAILSOFT)
     public void test(CallbackInfo ci) {
         if(ExporterClient.MARKED_BUFFER != null && ExporterClient.MARKED_CONSUMERS.containsKey(this)) {
             RenderInfo info = ExporterClient.MARKED_CONSUMERS.get(this);

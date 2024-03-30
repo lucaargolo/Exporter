@@ -587,6 +587,9 @@ public class ExporterClient implements ClientModInitializer {
 
         var model = builder.build();
         var file = new File(FabricLoader.getInstance().getGameDir() + File.separator + "models" + File.separator + "model" + ++MODEL_COUNT + ".glb");
+        while (file.exists()) {
+            file = new File(FabricLoader.getInstance().getGameDir() + File.separator + "models" + File.separator + "model" + ++MODEL_COUNT + ".glb");
+        }
         var writer = new GltfModelWriter();
         var minecraft = Minecraft.getInstance();
         var player = minecraft.player;
@@ -614,8 +617,8 @@ public class ExporterClient implements ClientModInitializer {
         primitive.putAttribute("NORMAL", normal);
 
         //Tangents can be empty if Iris is not present
-        if(tangents != null && tangents.length > 0) {
-            //var tangent = AccessorModels.createFloat3D(FloatBuffer.wrap(tangents));
+        if(tangents.length > 0) {
+            //var tangent = AccessorModels.createFloat4D(FloatBuffer.wrap(tangents));
             //primitive.putAttribute("TANGENT", tangent);
         }
 
