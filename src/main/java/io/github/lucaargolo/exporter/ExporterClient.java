@@ -3,6 +3,7 @@ package io.github.lucaargolo.exporter;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.datafixers.util.Pair;
 import com.mojang.logging.LogUtils;
 import de.javagl.jgltf.model.MaterialModel;
 import de.javagl.jgltf.model.MeshModel;
@@ -61,6 +62,7 @@ public class ExporterClient implements ClientModInitializer {
 
     public static final Logger LOGGER = LogUtils.getLogger();
     private static int MODEL_COUNT = 0;
+    private static int IMAGE_COUNT = 0;
 
     public static boolean SETUP = false;
     public static boolean COMPLETE = false;
@@ -92,8 +94,8 @@ public class ExporterClient implements ClientModInitializer {
 
 
     public static final List<NodeModel> NODES = new ArrayList<>();
-    public static final Map<RenderInfo, MaterialModel> MATERIALS = new HashMap<>();
-    public static final Map<Integer, TextureModel> TEXTURES = new HashMap<>();
+    public static final Map<RenderInfo, Pair<MaterialModel, float[]>> MATERIALS = new HashMap<>();
+    public static final Map<Integer, Pair<TextureModel, float[]>> TEXTURES = new HashMap<>();
 
     private static boolean UV = false;
     private static boolean COLOR = false;
@@ -403,7 +405,7 @@ public class ExporterClient implements ClientModInitializer {
 
     }
 
-    public static ByteBuffer extractTexture(int glId, PBRType type) {
+    public static Pair<ByteBuffer, float[]> extractTexture(int glId, PBRType type, int[] indices, float[] texCoords) {
         int[] textureId = new int[1];
         GL11.glGetIntegerv(GL11.GL_TEXTURE_BINDING_2D, textureId);
         GL11.glBindTexture(GL11.GL_TEXTURE_2D, glId);
@@ -413,10 +415,10 @@ public class ExporterClient implements ClientModInitializer {
         GL11.glGetTexImage(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buffer);
         GL11.glBindTexture(GL11.GL_TEXTURE_2D, textureId[0]);
 
-        return convertToPNG(buffer, width, height, type);
+        return convertToPNG(buffer, width, height, type, indices, texCoords);
     }
 
-    public static ByteBuffer convertToPNG(ByteBuffer rgbaData, int width, int height, PBRType type) {
+    public static Pair<ByteBuffer, float[]> convertToPNG(ByteBuffer rgbaData, int width, int height, PBRType type, int[] indices, float[] texCoords) {
         BufferedImage img = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
         int[] pixels = new int[width * height];
         for (int i = 0; i < pixels.length; i++) {
@@ -459,13 +461,20 @@ public class ExporterClient implements ClientModInitializer {
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try {
-            ImageIO.write(img, "png", baos);
+            Pair<BufferedImage, float[]> pair = TextureTrimmer.trimTexture(img, indices, texCoords);
+            BufferedImage trimmed = pair.getFirst();
+            var file = new File(FabricLoader.getInstance().getGameDir() + File.separator + "models" + File.separator + "trimmed" + ++IMAGE_COUNT + ".png");
+            while (file.exists()) {
+                file = new File(FabricLoader.getInstance().getGameDir() + File.separator + "models" + File.separator + "trimmed" + ++IMAGE_COUNT + ".png");
+            }
+            ImageIO.write(trimmed, "png", baos);
+
             baos.flush();
             byte[] pngData = baos.toByteArray();
             baos.close();
-            return ByteBuffer.wrap(pngData);
+            return new Pair<>(ByteBuffer.wrap(pngData), pair.getSecond());
         }catch (Exception e) {
-            return ByteBuffer.wrap(new byte[0]);
+            return new Pair<>(ByteBuffer.wrap(new byte[0]), texCoords);
         }
     }
 
@@ -520,8 +529,10 @@ public class ExporterClient implements ClientModInitializer {
             }
             try {
                 var child = new DefaultNodeModel();
-                var material = MATERIALS.computeIfAbsent(info, ExporterClient::getMaterial);
-                MeshModel mesh = writeMesh(material, vertices, normals, tangents, uvs, colors, triangles);
+                var pair = MATERIALS.computeIfAbsent(info, i -> getMaterial(i, triangles, uvs));
+                var material = pair.getFirst();
+                var coords = pair.getSecond();
+                MeshModel mesh = writeMesh(material, vertices, normals, tangents, coords, colors, triangles);
                 child.addMeshModel(mesh);
                 node.addChild(child);
             } catch (Exception e) {
@@ -531,8 +542,9 @@ public class ExporterClient implements ClientModInitializer {
         NODES.add(node);
     }
 
-    public static TextureModel getTexture(int glId, PBRType type) {
-        ByteBuffer imageBuffer = extractTexture(glId, type);
+    public static Pair<TextureModel, float[]> getTexture(int glId, PBRType type, int[] indices, float[] texCoords) {
+        Pair<ByteBuffer, float[]> pair = extractTexture(glId, type, indices, texCoords);
+        ByteBuffer imageBuffer = pair.getFirst();
 
         var image = new DefaultImageModel();
         image.setImageData(imageBuffer);
@@ -542,29 +554,33 @@ public class ExporterClient implements ClientModInitializer {
         texture.setMinFilter(GL11.GL_NEAREST);
         texture.setMagFilter(GL11.GL_NEAREST);
 
-        return texture;
+        return new Pair<>(texture, pair.getSecond());
     }
 
-    public static TextureModel getBaseTexture(int glId) {
-        return getTexture(glId, PBRType.BASE);
+    public static Pair<TextureModel, float[]> getBaseTexture(int glId, int[] indices, float[] texCoords) {
+        return getTexture(glId, PBRType.BASE, indices, texCoords);
     }
 
-    public static TextureModel getNormalTexture(int glId) {
-        return getTexture(glId, PBRType.NORMAL);
+    public static Pair<TextureModel, float[]> getNormalTexture(int glId, int[] indices, float[] texCoords) {
+        return getTexture(glId, PBRType.NORMAL, indices, texCoords);
     }
 
-    public static TextureModel getSpecularTexture(int glId) {
-        return getTexture(glId, PBRType.SPECULAR);
+    public static Pair<TextureModel, float[]> getSpecularTexture(int glId, int[] indices, float[] texCoords) {
+        return getTexture(glId, PBRType.SPECULAR, indices, texCoords);
     }
 
-    public static MaterialModel getMaterial(RenderInfo info) {
+    public static Pair<MaterialModel, float[]> getMaterial(RenderInfo info, int[] indices, float[] texCoords) {
         var material = new MaterialModelV2();
-        if(info.glId() >= 0)
-            material.setBaseColorTexture(TEXTURES.computeIfAbsent(info.glId(), ExporterClient::getBaseTexture));
+        float[] finalCoords = texCoords;
+        if(info.glId() >= 0) {
+            var pair = TEXTURES.computeIfAbsent(info.glId(), i -> getBaseTexture(i, indices, texCoords));
+            material.setBaseColorTexture(pair.getFirst());
+            finalCoords = pair.getSecond();
+        }
         if(info.normalGlId() >= 0)
-            material.setNormalTexture(TEXTURES.computeIfAbsent(info.normalGlId(), ExporterClient::getNormalTexture));
+            material.setNormalTexture(TEXTURES.computeIfAbsent(info.normalGlId(), i -> getNormalTexture(i, indices, texCoords)).getFirst());
         if(info.specularGlId() >= 0)
-            material.setMetallicRoughnessTexture(TEXTURES.computeIfAbsent(info.specularGlId(), ExporterClient::getSpecularTexture));
+            material.setMetallicRoughnessTexture(TEXTURES.computeIfAbsent(info.specularGlId(), i -> getSpecularTexture(i, indices, texCoords)).getFirst());
         var alphaMode = switch (info.type()) {
             case SOLID -> MaterialModelV2.AlphaMode.OPAQUE;
             case CUTOUT -> MaterialModelV2.AlphaMode.MASK;
@@ -573,7 +589,7 @@ public class ExporterClient implements ClientModInitializer {
         material.setAlphaMode(alphaMode);
         material.setDoubleSided(info.backface());
 
-        return material;
+        return new Pair<>(material, finalCoords);
     }
 
     public static void writeCapturedModel() {

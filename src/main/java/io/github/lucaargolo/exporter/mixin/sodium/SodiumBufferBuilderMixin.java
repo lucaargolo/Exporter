@@ -23,7 +23,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 
-@Mixin(value = SodiumBufferBuilder.class, remap = false)
+@Mixin(value = SodiumBufferBuilder.class)
 public class SodiumBufferBuilderMixin {
 
     @Shadow @Final private ExtendedBufferBuilder builder;
@@ -64,7 +64,7 @@ public class SodiumBufferBuilderMixin {
     }
 
     @SuppressWarnings("SuspiciousMethodCalls")
-    @Inject(at = @At("HEAD"), method = "push")
+    @Inject(at = @At("HEAD"), method = "push", remap = false)
     public void test(MemoryStack stack, long ptr, int count, VertexFormatDescription format, CallbackInfo ci) {
         if(ExporterClient.MARKED_BUFFER != null && ExporterClient.MARKED_CONSUMERS.containsKey(this)) {
             RenderInfo info = ExporterClient.MARKED_CONSUMERS.get(this);
