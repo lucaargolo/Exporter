@@ -24,4 +24,8 @@ public record RenderInfo(int glId, int normalGlId, int specularGlId, VertexForma
         return new ImageInfo(this, ImageInfo.Type.BASE, trim);
     }
 
+    public boolean equalsTexture(RenderInfo other) {
+        return glId == other.glId && normalGlId == other.normalGlId && specularGlId == other.specularGlId;
+    }
+
 }
