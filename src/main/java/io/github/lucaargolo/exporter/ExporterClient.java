@@ -3,7 +3,6 @@ package io.github.lucaargolo.exporter;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import com.mojang.datafixers.util.Pair;
 import com.mojang.logging.LogUtils;
 import de.javagl.jgltf.model.MaterialModel;
 import de.javagl.jgltf.model.MeshModel;
@@ -62,7 +61,6 @@ public class ExporterClient implements ClientModInitializer {
 
     public static final Logger LOGGER = LogUtils.getLogger();
     private static int MODEL_COUNT = 0;
-    private static int IMAGE_COUNT = 0;
 
     public static boolean SETUP = false;
     public static boolean COMPLETE = false;
@@ -94,8 +92,9 @@ public class ExporterClient implements ClientModInitializer {
 
 
     public static final List<NodeModel> NODES = new ArrayList<>();
-    public static final Map<RenderInfo, Pair<MaterialModel, float[]>> MATERIALS = new HashMap<>();
-    public static final Map<Integer, Pair<TextureModel, float[]>> TEXTURES = new HashMap<>();
+    public static final Map<ImageInfo, MaterialModel> MATERIALS = new HashMap<>();
+    public static final Map<ImageInfo, TextureModel> TEXTURES = new HashMap<>();
+    public static final Map<ImageInfo, BufferedImage> IMAGES = new HashMap<>();
 
     private static boolean UV = false;
     private static boolean COLOR = false;
@@ -166,9 +165,9 @@ public class ExporterClient implements ClientModInitializer {
             }
 
             String name = composite.toString();
-            RenderInfo info = new RenderInfo(glId, normalGlId, specularGlId, renderType.mode(), RenderInfo.Type.fromName(name), cull, blend);
+            RenderInfo render = new RenderInfo(glId, normalGlId, specularGlId, renderType.mode(), RenderInfo.Type.fromName(name), cull, blend);
             buffer = Compat.SODIUM.collectBuffer(buffer);
-            ExporterClient.MARKED_CONSUMERS.put(buffer, info);
+            ExporterClient.MARKED_CONSUMERS.put(buffer, render);
 
             //TODO: Add support to MultiTextureShard
         }
@@ -314,13 +313,13 @@ public class ExporterClient implements ClientModInitializer {
         CAPTURED_TRIANGLES.clear();
     }
 
-    public static void captureVertex(RenderInfo info, float x, float y, float z) {
-        if(info.mode().primitiveLength < 3)
+    public static void captureVertex(RenderInfo render, float x, float y, float z) {
+        if(render.mode().primitiveLength < 3)
             return;
 
-        CAPTURED_INFO.add(info);
-        List<Vector3f> vertices = CAPTURED_VERTICES.computeIfAbsent(info, i -> new ArrayList<>());
-        List<Vector3i> triangles = CAPTURED_TRIANGLES.computeIfAbsent(info, i -> new ArrayList<>());
+        CAPTURED_INFO.add(render);
+        List<Vector3f> vertices = CAPTURED_VERTICES.computeIfAbsent(render, i -> new ArrayList<>());
+        List<Vector3i> triangles = CAPTURED_TRIANGLES.computeIfAbsent(render, i -> new ArrayList<>());
 
         Vector4f reversedVertex = INVERTED_POSE != null ? INVERTED_POSE.transform(new Vector4f(x, y, z, 1f)) : new Vector4f(x, y, z, 1f);
         reversedVertex = EXTRA_POSE != null ? EXTRA_POSE.transform(reversedVertex) : reversedVertex;
@@ -328,9 +327,9 @@ public class ExporterClient implements ClientModInitializer {
         int index = vertices.size();
         vertices.add(capturedVertex);
 
-        int verticeCount = VERTICE_COUNT.computeIfAbsent(info, i -> 0);
-        IntArrayList verticeHolder = VERTICE_HOLDER.computeIfAbsent(info, i -> new IntArrayList(new int[4]));
-        if(info.mode().primitiveLength == 4) {
+        int verticeCount = VERTICE_COUNT.computeIfAbsent(render, i -> 0);
+        IntArrayList verticeHolder = VERTICE_HOLDER.computeIfAbsent(render, i -> new IntArrayList(new int[4]));
+        if(render.mode().primitiveLength == 4) {
             verticeHolder.set(verticeCount % 4, index);
             if ((verticeCount + 1) % 4 == 0) {
                 int v0 = verticeHolder.getInt(0);
@@ -349,85 +348,81 @@ public class ExporterClient implements ClientModInitializer {
                 triangles.add(new Vector3i(v0, v1, v2));
             }
         }
-        ExporterClient.VERTICE_COUNT.put(info, verticeCount+1);
+        ExporterClient.VERTICE_COUNT.put(render, verticeCount+1);
 
         COLOR = false;
         UV = false;
         NORMAL = false;
     }
 
-    public static void captureNormal(RenderInfo info, float x, float y, float z) {
-        if(info.mode().primitiveLength < 3)
+    public static void captureNormal(RenderInfo render, float x, float y, float z) {
+        if(render.mode().primitiveLength < 3)
             return;
-        CAPTURED_INFO.add(info);
-        List<Vector3f> normals = CAPTURED_NORMALS.computeIfAbsent(info, i -> new ArrayList<>());
+        CAPTURED_INFO.add(render);
+        List<Vector3f> normals = CAPTURED_NORMALS.computeIfAbsent(render, i -> new ArrayList<>());
         Vector3f reversedNormal = INVERTED_NORMAL != null ? INVERTED_NORMAL.transform(new Vector3f(x, y, z)) : new Vector3f(x, y, z);
         reversedNormal = EXTRA_NORMAL != null ? EXTRA_NORMAL.transform(reversedNormal) : reversedNormal;
         normals.add(reversedNormal.normalize());
         NORMAL = true;
     }
 
-    public static void captureTangent(RenderInfo info, float x, float y, float z, float w) {
-        if(info.mode().primitiveLength < 3)
+    public static void captureTangent(RenderInfo render, float x, float y, float z, float w) {
+        if(render.mode().primitiveLength < 3)
             return;
-        CAPTURED_INFO.add(info);
-        List<Vector4f> tangents = CAPTURED_TANGENTS.computeIfAbsent(info, i -> new ArrayList<>());
+        CAPTURED_INFO.add(render);
+        List<Vector4f> tangents = CAPTURED_TANGENTS.computeIfAbsent(render, i -> new ArrayList<>());
         tangents.add(new Vector4f(x, y, z, w));
     }
 
-    public static void captureUv(RenderInfo info, float u, float v) {
-        if(info.mode().primitiveLength < 3)
+    public static void captureUv(RenderInfo render, float u, float v) {
+        if(render.mode().primitiveLength < 3)
             return;
-        CAPTURED_INFO.add(info);
-        List<Vector2f> uvs = CAPTURED_UVS.computeIfAbsent(info, i -> new ArrayList<>());
+        CAPTURED_INFO.add(render);
+        List<Vector2f> uvs = CAPTURED_UVS.computeIfAbsent(render, i -> new ArrayList<>());
         uvs.add(new Vector2f(Mth.clamp(u, 0f, 1f), Mth.clamp(v, 0f, 1f)));
         UV = true;
     }
 
-    public static void captureRgb(RenderInfo info, float r, float g, float b, float a) {
-        if(info.mode().primitiveLength < 3)
+    public static void captureRgb(RenderInfo render, float r, float g, float b, float a) {
+        if(render.mode().primitiveLength < 3)
             return;
-        CAPTURED_INFO.add(info);
-        List<Vector4f> colors = CAPTURED_COLORS.computeIfAbsent(info, i -> new ArrayList<>());
-        colors.add(new Vector4f(Mth.clamp(r, 0f, 1f), Mth.clamp(g, 0f, 1f), Mth.clamp(b, 0f, 1f), info.alpha() ? Mth.clamp(a, 0f, 1f) : 1f));
+        CAPTURED_INFO.add(render);
+        List<Vector4f> colors = CAPTURED_COLORS.computeIfAbsent(render, i -> new ArrayList<>());
+        colors.add(new Vector4f(Mth.clamp(r, 0f, 1f), Mth.clamp(g, 0f, 1f), Mth.clamp(b, 0f, 1f), render.alpha() ? Mth.clamp(a, 0f, 1f) : 1f));
         COLOR = true;
     }
 
-    public static void endCapture(RenderInfo info) {
-        if(info.mode().primitiveLength < 3)
+    public static void endCapture(RenderInfo render) {
+        if(render.mode().primitiveLength < 3)
             return;
         if(!NORMAL)
-            captureNormal(info, 0f, 1f, 0f);
+            captureNormal(render, 0f, 1f, 0f);
         if(!UV)
-            captureUv(info, 0f, 0f);
+            captureUv(render, 0f, 0f);
         if(!COLOR)
-            captureRgb(info, 1f, 1f, 1f, 1f);
+            captureRgb(render, 1f, 1f, 1f, 1f);
 
     }
 
-    public static Pair<ByteBuffer, float[]> extractTexture(int glId, PBRType type, int[] indices, float[] texCoords) {
+    public static BufferedImage extractImage(ImageInfo image) {
         int[] textureId = new int[1];
         GL11.glGetIntegerv(GL11.GL_TEXTURE_BINDING_2D, textureId);
-        GL11.glBindTexture(GL11.GL_TEXTURE_2D, glId);
+        GL11.glBindTexture(GL11.GL_TEXTURE_2D, image.render().glId());
         int width = GL11.glGetTexLevelParameteri(GL11.GL_TEXTURE_2D, 0, GL11.GL_TEXTURE_WIDTH);
         int height = GL11.glGetTexLevelParameteri(GL11.GL_TEXTURE_2D, 0, GL11.GL_TEXTURE_HEIGHT);
         ByteBuffer buffer = BufferUtils.createByteBuffer(width * height * 4);
         GL11.glGetTexImage(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buffer);
         GL11.glBindTexture(GL11.GL_TEXTURE_2D, textureId[0]);
 
-        return convertToPNG(buffer, width, height, type, indices, texCoords);
-    }
-
-    public static Pair<ByteBuffer, float[]> convertToPNG(ByteBuffer rgbaData, int width, int height, PBRType type, int[] indices, float[] texCoords) {
         BufferedImage img = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
         int[] pixels = new int[width * height];
         for (int i = 0; i < pixels.length; i++) {
-            int r = rgbaData.get() & 0xFF;
-            int g = rgbaData.get() & 0xFF;
-            int b = rgbaData.get() & 0xFF;
-            int a = rgbaData.get() & 0xFF;
+            int r = buffer.get() & 0xFF;
+            int g = buffer.get() & 0xFF;
+            int b = buffer.get() & 0xFF;
+            int a = buffer.get() & 0xFF;
 
-            if(type == PBRType.NORMAL) {
+            if(image.type() == ImageInfo.Type.NORMAL) {
                 float x = r / 255.0f;
                 float y = 1f - (g / 255.0f);
                 float z = (float) Math.sqrt(1.0f - (x * x + y * y));
@@ -436,12 +431,11 @@ public class ExporterClient implements ClientModInitializer {
                 r = (int) (x * 255);
                 g = (int) (y * 255);
                 b = (int) (z * 255);
-            }else if(type == PBRType.SPECULAR) {
+            }else if(image.type() == ImageInfo.Type.SPECULAR) {
                 double roughness = Math.pow(1.0 - (r / 255.0), 2.0);
 
                 double metallic;
                 if (g >= 230 && g <= 254) {
-                    //TODO: Improve this
                     int metalIndex = Mth.clamp(g - 230, 0, METALS_TABLE.length-1);
                     double[] metalValues = METALS_TABLE[metalIndex];
                     metallic = (metalValues[0] + metalValues[1] + metalValues[2]) / 3.0;
@@ -459,79 +453,63 @@ public class ExporterClient implements ClientModInitializer {
         }
         img.setRGB(0, 0, width, height, pixels, 0, width);
 
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        try {
-            Pair<BufferedImage, float[]> pair = TextureTrimmer.trimTexture(img, indices, texCoords);
-            BufferedImage trimmed = pair.getFirst();
-            var file = new File(FabricLoader.getInstance().getGameDir() + File.separator + "models" + File.separator + "trimmed" + ++IMAGE_COUNT + ".png");
-            while (file.exists()) {
-                file = new File(FabricLoader.getInstance().getGameDir() + File.separator + "models" + File.separator + "trimmed" + ++IMAGE_COUNT + ".png");
-            }
-            ImageIO.write(trimmed, "png", baos);
-
-            baos.flush();
-            byte[] pngData = baos.toByteArray();
-            baos.close();
-            return new Pair<>(ByteBuffer.wrap(pngData), pair.getSecond());
-        }catch (Exception e) {
-            return new Pair<>(ByteBuffer.wrap(new byte[0]), texCoords);
-        }
+        return img;
     }
 
     public static void writeCapturedNode(Vector3f translation) {
         var node = new DefaultNodeModel();
         node.setTranslation(new float[] {translation.x, translation.y, translation.z});
-        for (RenderInfo info: CAPTURED_INFO) {
-            float[] vertices = new float[CAPTURED_VERTICES.get(info).size() * 3];
-            for (int i = 0; i < CAPTURED_VERTICES.get(info).size(); i++) {
-                Vector3f vertex = CAPTURED_VERTICES.get(info).get(i);
+        for (RenderInfo render: CAPTURED_INFO) {
+            float[] vertices = new float[CAPTURED_VERTICES.get(render).size() * 3];
+            for (int i = 0; i < CAPTURED_VERTICES.get(render).size(); i++) {
+                Vector3f vertex = CAPTURED_VERTICES.get(render).get(i);
                 vertices[i * 3] = vertex.x;
                 vertices[i * 3 + 1] = vertex.y;
                 vertices[i * 3 + 2] = vertex.z;
             }
-            float[] normals = new float[CAPTURED_NORMALS.get(info).size() * 3];
-            for (int i = 0; i < CAPTURED_NORMALS.get(info).size(); i++) {
-                Vector3f normal = CAPTURED_NORMALS.get(info).get(i);
+            float[] normals = new float[CAPTURED_NORMALS.get(render).size() * 3];
+            for (int i = 0; i < CAPTURED_NORMALS.get(render).size(); i++) {
+                Vector3f normal = CAPTURED_NORMALS.get(render).get(i);
                 normals[i * 3] = normal.x;
                 normals[i * 3 + 1] = normal.y;
                 normals[i * 3 + 2] = normal.z;
             }
             //Tangents can be empty if Iris is not present
-            int tangentSize = CAPTURED_TANGENTS.get(info) != null ? CAPTURED_TANGENTS.get(info).size() : 0;
+            int tangentSize = CAPTURED_TANGENTS.get(render) != null ? CAPTURED_TANGENTS.get(render).size() : 0;
             float[] tangents = new float[tangentSize * 4];
             for (int i = 0; i < tangentSize; i++) {
-                Vector4f tangent = CAPTURED_TANGENTS.get(info).get(i);
+                Vector4f tangent = CAPTURED_TANGENTS.get(render).get(i);
                 tangents[i * 4] = tangent.x;
                 tangents[i * 4 + 1] = tangent.y;
                 tangents[i * 4 + 2] = tangent.z;
                 tangents[i * 4 + 3] = tangent.w;
             }
-            float[] uvs = new float[CAPTURED_UVS.get(info).size() * 2];
-            for (int i = 0; i < CAPTURED_UVS.get(info).size(); i++) {
-                Vector2f uv = CAPTURED_UVS.get(info).get(i);
+            float[] uvs = new float[CAPTURED_UVS.get(render).size() * 2];
+            for (int i = 0; i < CAPTURED_UVS.get(render).size(); i++) {
+                Vector2f uv = CAPTURED_UVS.get(render).get(i);
                 uvs[i * 2] = uv.x;
                 uvs[i * 2 + 1] = uv.y;
             }
-            float[] colors = new float[CAPTURED_COLORS.get(info).size() * 4];
-            for (int i = 0; i < CAPTURED_COLORS.get(info).size(); i++) {
-                Vector4f color = CAPTURED_COLORS.get(info).get(i);
+            float[] colors = new float[CAPTURED_COLORS.get(render).size() * 4];
+            for (int i = 0; i < CAPTURED_COLORS.get(render).size(); i++) {
+                Vector4f color = CAPTURED_COLORS.get(render).get(i);
                 colors[i * 4] = color.x;
                 colors[i * 4 + 1] = color.y;
                 colors[i * 4 + 2] = color.z;
                 colors[i * 4 + 3] = color.w;
             }
-            int[] triangles = new int[CAPTURED_TRIANGLES.get(info).size() * 3];
-            for (int i = 0; i < CAPTURED_TRIANGLES.get(info).size(); i++) {
-                Vector3i triangle = CAPTURED_TRIANGLES.get(info).get(i);
+            int[] triangles = new int[CAPTURED_TRIANGLES.get(render).size() * 3];
+            for (int i = 0; i < CAPTURED_TRIANGLES.get(render).size(); i++) {
+                Vector3i triangle = CAPTURED_TRIANGLES.get(render).get(i);
                 triangles[i * 3] = triangle.x;
                 triangles[i * 3 + 1] = triangle.y;
                 triangles[i * 3 + 2] = triangle.z;
             }
             try {
                 var child = new DefaultNodeModel();
-                var pair = MATERIALS.computeIfAbsent(info, i -> getMaterial(i, triangles, uvs));
-                var material = pair.getFirst();
-                var coords = pair.getSecond();
+                var image = render.image(true);
+                var material = MATERIALS.computeIfAbsent(image, ExporterClient::getMaterial);
+                var coords = image.trim() ? TextureTrimmer.trimUvs(IMAGES.get(image), CAPTURED_TRIANGLES.get(render), CAPTURED_UVS.get(render)) : uvs;
                 MeshModel mesh = writeMesh(material, vertices, normals, tangents, coords, colors, triangles);
                 child.addMeshModel(mesh);
                 node.addChild(child);
@@ -542,54 +520,56 @@ public class ExporterClient implements ClientModInitializer {
         NODES.add(node);
     }
 
-    public static Pair<TextureModel, float[]> getTexture(int glId, PBRType type, int[] indices, float[] texCoords) {
-        Pair<ByteBuffer, float[]> pair = extractTexture(glId, type, indices, texCoords);
-        ByteBuffer imageBuffer = pair.getFirst();
+    public static ByteBuffer trimAndBuffer(BufferedImage img, ImageInfo image) {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try {
+            if(image.trim()) {
+                BufferedImage trimmed = TextureTrimmer.trimImage(img, CAPTURED_TRIANGLES.get(image.render()), CAPTURED_UVS.get(image.render()));
+                ImageIO.write(trimmed, "png", baos);
+            }else{
+                ImageIO.write(img, "png", baos);
+            }
+            baos.flush();
+            byte[] pngData = baos.toByteArray();
+            baos.close();
+            return ByteBuffer.wrap(pngData);
+        }catch (Exception e) {
+            return ByteBuffer.wrap(new byte[0]);
+        }
+    }
 
-        var image = new DefaultImageModel();
-        image.setImageData(imageBuffer);
+    public static TextureModel getTexture(ImageInfo info) {
+        BufferedImage image = IMAGES.computeIfAbsent(info, ExporterClient::extractImage);
+        ByteBuffer imageBuffer = trimAndBuffer(image, info);
+
+        var model = new DefaultImageModel();
+        model.setImageData(imageBuffer);
 
         var texture = new DefaultTextureModel();
-        texture.setImageModel(image);
+        texture.setImageModel(model);
         texture.setMinFilter(GL11.GL_NEAREST);
         texture.setMagFilter(GL11.GL_NEAREST);
 
-        return new Pair<>(texture, pair.getSecond());
+        return texture;
     }
 
-    public static Pair<TextureModel, float[]> getBaseTexture(int glId, int[] indices, float[] texCoords) {
-        return getTexture(glId, PBRType.BASE, indices, texCoords);
-    }
-
-    public static Pair<TextureModel, float[]> getNormalTexture(int glId, int[] indices, float[] texCoords) {
-        return getTexture(glId, PBRType.NORMAL, indices, texCoords);
-    }
-
-    public static Pair<TextureModel, float[]> getSpecularTexture(int glId, int[] indices, float[] texCoords) {
-        return getTexture(glId, PBRType.SPECULAR, indices, texCoords);
-    }
-
-    public static Pair<MaterialModel, float[]> getMaterial(RenderInfo info, int[] indices, float[] texCoords) {
+    public static MaterialModel getMaterial(ImageInfo info) {
         var material = new MaterialModelV2();
-        float[] finalCoords = texCoords;
-        if(info.glId() >= 0) {
-            var pair = TEXTURES.computeIfAbsent(info.glId(), i -> getBaseTexture(i, indices, texCoords));
-            material.setBaseColorTexture(pair.getFirst());
-            finalCoords = pair.getSecond();
-        }
-        if(info.normalGlId() >= 0)
-            material.setNormalTexture(TEXTURES.computeIfAbsent(info.normalGlId(), i -> getNormalTexture(i, indices, texCoords)).getFirst());
-        if(info.specularGlId() >= 0)
-            material.setMetallicRoughnessTexture(TEXTURES.computeIfAbsent(info.specularGlId(), i -> getSpecularTexture(i, indices, texCoords)).getFirst());
-        var alphaMode = switch (info.type()) {
+        if(info.render().glId() >= 0)
+            material.setBaseColorTexture(TEXTURES.computeIfAbsent(info, ExporterClient::getTexture));
+        if(info.render().normalGlId() >= 0)
+            material.setNormalTexture(TEXTURES.computeIfAbsent(info.toNormal(), ExporterClient::getTexture));
+        if(info.render().specularGlId() >= 0)
+            material.setMetallicRoughnessTexture(TEXTURES.computeIfAbsent(info.toSpecular(), ExporterClient::getTexture));
+        var alphaMode = switch (info.render().type()) {
             case SOLID -> MaterialModelV2.AlphaMode.OPAQUE;
             case CUTOUT -> MaterialModelV2.AlphaMode.MASK;
             case TRANSLUCENT -> MaterialModelV2.AlphaMode.BLEND;
         };
         material.setAlphaMode(alphaMode);
-        material.setDoubleSided(info.backface());
+        material.setDoubleSided(info.render().backface());
 
-        return new Pair<>(material, finalCoords);
+        return material;
     }
 
     public static void writeCapturedModel() {
@@ -666,12 +646,6 @@ public class ExporterClient implements ClientModInitializer {
 
     public static Vector3f getCenter(BlockPos pos) {
         return new Vector3f(pos.getX() + 0.5f, pos.getY() + 0.5f, pos.getZ() + 0.5f);
-    }
-
-    public enum PBRType {
-        BASE,
-        NORMAL,
-        SPECULAR;
     }
 
 }

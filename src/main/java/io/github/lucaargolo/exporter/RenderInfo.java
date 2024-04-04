@@ -18,8 +18,10 @@ public record RenderInfo(int glId, int normalGlId, int specularGlId, VertexForma
                 return SOLID;
             }
         }
+    }
 
-
+    public ImageInfo image(boolean trim) {
+        return new ImageInfo(this, ImageInfo.Type.BASE, trim);
     }
 
 }

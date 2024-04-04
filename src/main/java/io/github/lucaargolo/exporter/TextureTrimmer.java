@@ -3,6 +3,8 @@ package io.github.lucaargolo.exporter;
 import com.mojang.datafixers.util.Pair;
 import net.minecraft.util.Mth;
 import org.jetbrains.annotations.NotNull;
+import org.joml.Vector2f;
+import org.joml.Vector3i;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -17,9 +19,16 @@ public class TextureTrimmer {
 
     private record TexturePart(int startX, int startY, int width, int height) {}
 
-    public static Pair<BufferedImage, float[]> trimTexture(BufferedImage original, int[] indices, float[] texCoords) {
+    public static BufferedImage trimImage(BufferedImage original, List<Vector3i> triangles, List<Vector2f> uvs) {
+        return trimTextureAndUvs(original, triangles, uvs, true).getFirst();
+    }
 
-        List<Pair<TexturePart, TextureReference>> pairs = getTextureParts(original, indices, texCoords);
+    public static float[] trimUvs(BufferedImage original, List<Vector3i> triangles, List<Vector2f> uvs) {
+        return trimTextureAndUvs(original, triangles, uvs, false).getSecond();
+    }
+
+    private static Pair<BufferedImage, float[]> trimTextureAndUvs(BufferedImage original, List<Vector3i> triangles, List<Vector2f> uvs, boolean image) {
+        List<Pair<TexturePart, TextureReference>> pairs = getTextureParts(original, triangles, uvs);
         HashMap<TexturePart, TexturePart> updated = new HashMap<>();
 
         int atlasWidth = 0;
@@ -36,8 +45,12 @@ public class TextureTrimmer {
         }
         updated.clear();
 
-        BufferedImage atlas = new BufferedImage(atlasWidth, atlasHeight, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g2d = atlas.createGraphics();
+        BufferedImage atlas = null;
+        Graphics2D g2d = null;
+        if(image) {
+            atlas = new BufferedImage(atlasWidth, atlasHeight, BufferedImage.TYPE_INT_ARGB);
+            g2d = atlas.createGraphics();
+        }
 
         int currentX = 0;
         int currentY = 0;
@@ -45,16 +58,21 @@ public class TextureTrimmer {
         for (Pair<TexturePart, TextureReference> pair : pairs) {
             TexturePart part = pair.getFirst();
             if (!updated.containsKey(part)) {
-                BufferedImage partImage = new BufferedImage(part.width(), part.height(), BufferedImage.TYPE_INT_ARGB);
-                for (int x = 0; x < part.width(); x++) {
-                    for (int y = 0; y < part.height(); y++) {
-                        partImage.setRGB(x, y, original.getRGB(part.startX() + x, part.startY() + y));
+
+                BufferedImage partImage = null;
+                if(image) {
+                    partImage = new BufferedImage(part.width(), part.height(), BufferedImage.TYPE_INT_ARGB);
+                    for (int x = 0; x < part.width(); x++) {
+                        for (int y = 0; y < part.height(); y++) {
+                            partImage.setRGB(x, y, original.getRGB(part.startX() + x, part.startY() + y));
+                        }
                     }
                 }
 
                 if (currentX + part.width() <= atlasWidth) {
                     updated.put(part, new TexturePart(currentX, currentY, part.width(), part.height()));
-                    g2d.drawImage(partImage, currentX, currentY, null);
+                    if(image)
+                        g2d.drawImage(partImage, currentX, currentY, null);
                     currentX += part.width();
                     rowHeight = Math.max(rowHeight, part.height());
                 } else {
@@ -62,63 +80,67 @@ public class TextureTrimmer {
                     currentX = 0;
                     rowHeight = part.height();
                     updated.put(part, new TexturePart(currentX, currentY, part.width(), part.height()));
-                    g2d.drawImage(partImage, currentX, currentY, null);
+                    if(image)
+                        g2d.drawImage(partImage, currentX, currentY, null);
                     currentX += part.width();
                 }
             }
         }
-        g2d.dispose();
+        if(image)
+            g2d.dispose();
 
-        float[] newTexCoords = new float[texCoords.length];
-        for (Pair<TexturePart, TextureReference> pair : pairs) {
-            TexturePart oldPart = pair.getFirst();
-            TexturePart newPart = updated.get(oldPart);
-            TextureReference reference = pair.getSecond();
+        float[] texCoords = new float[uvs.size() * 2];
+        if(!image) {
+            for (Pair<TexturePart, TextureReference> pair : pairs) {
+                TexturePart oldPart = pair.getFirst();
+                TexturePart newPart = updated.get(oldPart);
+                TextureReference reference = pair.getSecond();
 
-            float minU = (float) oldPart.startX() / original.getWidth();
-            float minV = (float) oldPart.startY() / original.getHeight();
-            float maxU = (float) (oldPart.startX() + oldPart.width()) / original.getWidth();
-            float maxV = (float) (oldPart.startY() + oldPart.height()) / original.getHeight();
+                float minU = (float) oldPart.startX() / original.getWidth();
+                float minV = (float) oldPart.startY() / original.getHeight();
+                float maxU = (float) (oldPart.startX() + oldPart.width()) / original.getWidth();
+                float maxV = (float) (oldPart.startY() + oldPart.height()) / original.getHeight();
 
-            float newMinU = (float) newPart.startX() / atlas.getWidth();
-            float newMinV = (float) newPart.startY() / atlas.getHeight();
-            float newMaxU = (float) (newPart.startX() + newPart.width()) / atlas.getWidth();
-            float newMaxV = (float) (newPart.startY() + newPart.height()) / atlas.getHeight();
+                float newMinU = (float) newPart.startX() / atlasWidth;
+                float newMinV = (float) newPart.startY() / atlasHeight;
+                float newMaxU = (float) (newPart.startX() + newPart.width()) / atlasWidth;
+                float newMaxV = (float) (newPart.startY() + newPart.height()) / atlasHeight;
 
-            float scaleX = (newMaxU - newMinU) / (maxU - minU);
-            float scaleY = (newMaxV - newMinV) / (maxV - minV);
+                float scaleX = (newMaxU - newMinU) / (maxU - minU);
+                float scaleY = (newMaxV - newMinV) / (maxV - minV);
 
-            newTexCoords[reference.t0 * 2] = newMinU + (texCoords[reference.t0 * 2] - minU) * scaleX;
-            newTexCoords[reference.t0 * 2 + 1] = newMinV + (texCoords[reference.t0 * 2 + 1] - minV) * scaleY;
-            newTexCoords[reference.t1 * 2] = newMinU + (texCoords[reference.t1 * 2] - minU) * scaleX;
-            newTexCoords[reference.t1 * 2 + 1] = newMinV + (texCoords[reference.t1 * 2 + 1] - minV) * scaleY;
-            newTexCoords[reference.t2 * 2] = newMinU + (texCoords[reference.t2 * 2] - minU) * scaleX;
-            newTexCoords[reference.t2 * 2 + 1] = newMinV + (texCoords[reference.t2 * 2 + 1] - minV) * scaleY;
+                texCoords[reference.t0 * 2] = newMinU + (uvs.get(reference.t0).x - minU) * scaleX;
+                texCoords[reference.t0 * 2 + 1] = newMinV + (uvs.get(reference.t0).y - minV) * scaleY;
+                texCoords[reference.t1 * 2] = newMinU + (uvs.get(reference.t1).x - minU) * scaleX;
+                texCoords[reference.t1 * 2 + 1] = newMinV + (uvs.get(reference.t1).y - minV) * scaleY;
+                texCoords[reference.t2 * 2] = newMinU + (uvs.get(reference.t2).x - minU) * scaleX;
+                texCoords[reference.t2 * 2 + 1] = newMinV + (uvs.get(reference.t2).y - minV) * scaleY;
+            }
         }
 
-        return new Pair<>(atlas, newTexCoords);
+        return new Pair<>(atlas, texCoords);
     }
 
     @NotNull
-    private static List<Pair<TexturePart, TextureReference>> getTextureParts(BufferedImage original, int[] indices, float[] texCoords) {
+    private static List<Pair<TexturePart, TextureReference>> getTextureParts(BufferedImage original, List<Vector3i> triangles, List<Vector2f> uvs) {
         int width = original.getWidth();
         int height = original.getHeight();
 
         List<Pair<TexturePart, TextureReference>> parts = new ArrayList<>();
 
-        for (int i = 0; i < indices.length; i += 3) {
-            int t0 = indices[i];
-            int t1 = indices[i + 1];
-            int t2 = indices[i + 2];
+        for (Vector3i triangle : triangles) {
+            int t0 = triangle.x;
+            int t1 = triangle.y;
+            int t2 = triangle.z;
 
-            float u0 = texCoords[t0 * 2];
-            float v0 = texCoords[t0 * 2 + 1];
+            float u0 = uvs.get(t0).x;
+            float v0 = uvs.get(t0).y;
 
-            float u1 = texCoords[t1 * 2];
-            float v1 = texCoords[t1 * 2 + 1];
+            float u1 = uvs.get(t1).x;
+            float v1 = uvs.get(t1).y;
 
-            float u2 = texCoords[t2 * 2];
-            float v2 = texCoords[t2 * 2 + 1];
+            float u2 = uvs.get(t2).x;
+            float v2 = uvs.get(t2).y;
 
             float minU = Math.min(u0, Math.min(u1, u2));
             float minV = Math.min(v0, Math.min(v1, v2));

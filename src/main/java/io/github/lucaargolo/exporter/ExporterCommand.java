@@ -25,6 +25,7 @@ public class ExporterCommand {
                         ExporterClient.NODES.clear();
                         ExporterClient.MATERIALS.clear();
                         ExporterClient.TEXTURES.clear();
+                        ExporterClient.IMAGES.clear();
                         return 1;
                     })
                     .then(ClientCommandManager.argument("complete", BoolArgumentType.bool())
@@ -36,6 +37,7 @@ public class ExporterCommand {
                             ExporterClient.NODES.clear();
                             ExporterClient.MATERIALS.clear();
                             ExporterClient.TEXTURES.clear();
+                            ExporterClient.IMAGES.clear();
                             return 1;
                         })
                     )
@@ -48,6 +50,7 @@ public class ExporterCommand {
                     ExporterClient.NODES.clear();
                     ExporterClient.MATERIALS.clear();
                     ExporterClient.TEXTURES.clear();
+                    ExporterClient.IMAGES.clear();
                     return 1;
                 })
             )
