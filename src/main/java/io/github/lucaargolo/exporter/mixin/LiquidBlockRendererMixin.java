@@ -1,6 +1,6 @@
 package io.github.lucaargolo.exporter.mixin;
 
-import io.github.lucaargolo.exporter.ExporterClient;
+import io.github.lucaargolo.exporter.utils.helper.RenderHelper;
 import net.minecraft.client.renderer.block.LiquidBlockRenderer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -18,14 +18,14 @@ public class LiquidBlockRendererMixin {
 
     @Inject(at = @At("HEAD"), method = "shouldRenderFace", cancellable = true)
     private static void completeRender(BlockAndTintGetter level, BlockPos pos, FluidState fluidState, BlockState blockState, Direction side, FluidState neighborFluid, CallbackInfoReturnable<Boolean> cir) {
-        if(ExporterClient.MARKED_BOX != null && (ExporterClient.COMPLETE || !ExporterClient.MARKED_BOX.isInside(pos.relative(side)))) {
+        if(RenderHelper.hasBox() && (RenderHelper.isComplete() || RenderHelper.isOutsideBox(pos.relative(side)))) {
             cir.setReturnValue(true);
         }
     }
 
     @Inject(at = @At("HEAD"), method = "isFaceOccludedByState", cancellable = true)
     private static void completeRender(BlockGetter level, Direction face, float height, BlockPos pos, BlockState state, CallbackInfoReturnable<Boolean> cir) {
-        if(ExporterClient.MARKED_BOX != null && !ExporterClient.MARKED_BOX.isInside(pos)) {
+        if(RenderHelper.hasBox() && RenderHelper.isOutsideBox(pos)) {
             cir.setReturnValue(false);
         }
     }

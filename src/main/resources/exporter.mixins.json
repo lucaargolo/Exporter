@@ -11,6 +11,8 @@
     "EntityRenderDispatcherMixin",
     "GltfModelBuilderMixin",
     "LiquidBlockRendererMixin",
+    "MinecraftMixin",
+    "MultiPlayerGameModeMixin",
     "create.ContraptionRenderDispatcherMixin",
     "create.ContraptionRenderInfoMixin",
     "flywheel.VirtualRenderWorldAccessor",

@@ -1,4 +1,4 @@
-package io.github.lucaargolo.exporter;
+package io.github.lucaargolo.exporter.utils.helper;
 
 import com.mojang.datafixers.util.Pair;
 import net.minecraft.util.Mth;
@@ -13,7 +13,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 
-public class TextureTrimmer {
+public class TrimHelper {
 
     private record TextureReference(int t0, int t1, int t2) {}
 

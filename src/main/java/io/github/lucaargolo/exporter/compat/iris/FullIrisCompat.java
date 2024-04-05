@@ -1,7 +1,7 @@
 package io.github.lucaargolo.exporter.compat.iris;
 
-import io.github.lucaargolo.exporter.ExporterClient;
-import io.github.lucaargolo.exporter.RenderInfo;
+import io.github.lucaargolo.exporter.utils.ModelBuilder;
+import io.github.lucaargolo.exporter.utils.info.RenderInfo;
 import net.caffeinemc.mods.sodium.api.vertex.format.VertexFormatDescription;
 import net.coderbot.batchedentityrendering.impl.WrappableRenderType;
 import net.coderbot.iris.compat.sodium.impl.vertex_format.IrisCommonVertexAttributes;
@@ -36,7 +36,7 @@ public class FullIrisCompat extends IrisCompat.Impl {
         if(object instanceof VertexFormatDescription format && format.containsElement(IrisCommonVertexAttributes.TANGENT)) {
             long tangentOffset = format.getElementOffset(IrisCommonVertexAttributes.TANGENT);
             int tangent = MemoryUtil.memGetInt(pointer + tangentOffset);
-            ExporterClient.captureTangent(info, NormI8.unpackX(tangent), NormI8.unpackY(tangent), NormI8.unpackZ(tangent), NormI8.unpackW(tangent));
+            ModelBuilder.captureTangent(info, NormI8.unpackX(tangent), NormI8.unpackY(tangent), NormI8.unpackZ(tangent), NormI8.unpackW(tangent));
         }
     }
 

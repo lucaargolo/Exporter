@@ -11,7 +11,7 @@ import java.util.Map;
 @Mixin(VirtualRenderWorld.class)
 public interface VirtualRenderWorldAccessor {
 
-    @Accessor
+    @Accessor(remap = false)
     Map<BlockPos, BlockState> getBlockStates();
 
 }

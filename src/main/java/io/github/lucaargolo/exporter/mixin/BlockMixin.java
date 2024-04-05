@@ -1,6 +1,6 @@
 package io.github.lucaargolo.exporter.mixin;
 
-import io.github.lucaargolo.exporter.ExporterClient;
+import io.github.lucaargolo.exporter.utils.helper.RenderHelper;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.BlockGetter;
@@ -16,7 +16,7 @@ public class BlockMixin {
 
     @Inject(at = @At("HEAD"), method = "shouldRenderFace", cancellable = true)
     private static void completeRender(BlockState state, BlockGetter level, BlockPos offset, Direction face, BlockPos pos, CallbackInfoReturnable<Boolean> cir) {
-        if(ExporterClient.MARKED_BOX != null && !ExporterClient.MARKED_BOX.isInside(pos)) {
+        if(RenderHelper.hasBox() && RenderHelper.isOutsideBox(pos)) {
             cir.setReturnValue(true);
         }
     }

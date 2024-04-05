@@ -1,4 +1,4 @@
-package io.github.lucaargolo.exporter;
+package io.github.lucaargolo.exporter.utils.info;
 
 import com.mojang.blaze3d.vertex.VertexFormat;
 

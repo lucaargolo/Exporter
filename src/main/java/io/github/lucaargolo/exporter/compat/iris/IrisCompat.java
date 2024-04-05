@@ -1,7 +1,7 @@
 package io.github.lucaargolo.exporter.compat.iris;
 
-import io.github.lucaargolo.exporter.RenderInfo;
 import io.github.lucaargolo.exporter.compat.Compat;
+import io.github.lucaargolo.exporter.utils.info.RenderInfo;
 import net.minecraft.client.renderer.RenderType;
 
 public abstract class IrisCompat extends Compat.Impl {

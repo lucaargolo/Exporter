@@ -2,7 +2,7 @@ package io.github.lucaargolo.exporter.mixin.create;
 
 import com.jozufozu.flywheel.event.BeginFrameEvent;
 import com.simibubi.create.content.contraptions.render.ContraptionRenderInfo;
-import io.github.lucaargolo.exporter.ExporterClient;
+import io.github.lucaargolo.exporter.utils.helper.RenderHelper;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -16,7 +16,7 @@ public class ContraptionRenderInfoMixin {
 
     @Inject(at = @At("TAIL"), method = "beginFrame")
     public void makeContraptionsVisible(BeginFrameEvent event, CallbackInfo ci) {
-        if(ExporterClient.SETUP) {
+        if(RenderHelper.isSetup()) {
             this.visible = true;
         }
     }
